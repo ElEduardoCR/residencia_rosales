@@ -10,13 +10,16 @@ import type { ItemInventarioSalida } from "@/lib/types";
 import SignaturePad from "./SignaturePad";
 
 type PacienteMin = { id: string; nombre: string };
+type PersonalMin = { id: string; nombre: string };
 
 export default function SalidaForm({
   pacientes,
+  personal,
   pacienteInicial = "",
   onCreada,
 }: {
   pacientes: PacienteMin[];
+  personal: PersonalMin[];
   pacienteInicial?: string;
   onCreada?: () => void;
 }) {
@@ -33,6 +36,8 @@ export default function SalidaForm({
   const [fechaRegresoEst, setFechaRegresoEst] = useState("");
   const [condicion, setCondicion] = useState("");
   const [firma, setFirma] = useState<string | null>(null);
+  const [enfermeroEntregaId, setEnfermeroEntregaId] = useState("");
+  const [firmaEnfermero, setFirmaEnfermero] = useState<string | null>(null);
 
   const [inventario, setInventario] = useState<ItemInventarioSalida[]>(
     ITEMS_SALIDA_DEFAULT.map((nombre) => ({ nombre, llevado: false })),
@@ -61,6 +66,8 @@ export default function SalidaForm({
 
     let firmaUrl: string | null = null;
     if (firma) firmaUrl = await subirDataURL(supabase, "firmas", firma);
+    let firmaEnfUrl: string | null = null;
+    if (firmaEnfermero) firmaEnfUrl = await subirDataURL(supabase, "firmas", firmaEnfermero);
 
     const { error } = await supabase.from("salidas").insert({
       paciente_id: pacienteId,
@@ -72,6 +79,8 @@ export default function SalidaForm({
       inventario,
       condicion_fisica_salida: condicion || null,
       firma_salida_url: firmaUrl,
+      enfermero_entrega_id: enfermeroEntregaId || null,
+      firma_salida_enfermero_url: firmaEnfUrl,
       estado: "fuera",
     });
 
@@ -151,8 +160,18 @@ export default function SalidaForm({
         <textarea className="input min-h-20" value={condicion} onChange={(e) => setCondicion(e.target.value)} />
       </div>
 
-      <div className="card p-5">
-        <SignaturePad value={firma} onChange={setFirma} label="Firma de quien recibe al paciente" />
+      <div className="card space-y-4 p-5">
+        <div>
+          <label className="label">Enfermero que entrega al paciente</label>
+          <select className="input max-w-sm" value={enfermeroEntregaId} onChange={(e) => setEnfermeroEntregaId(e.target.value)}>
+            <option value="">— Selecciona —</option>
+            {personal.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <SignaturePad value={firmaEnfermero} onChange={setFirmaEnfermero} label="Firma del enfermero que entrega" />
+          <SignaturePad value={firma} onChange={setFirma} label="Firma de quien se lleva al paciente" />
+        </div>
       </div>
 
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

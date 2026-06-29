@@ -9,7 +9,13 @@ import MedicamentoAutocomplete from "./MedicamentoAutocomplete";
 const unidadDe = (tipo: TipoMedicamento) =>
   TIPOS_MEDICAMENTO.find((t) => t.value === tipo)?.unidad ?? "unidad";
 
-export default function InventarioCliente({ inicial }: { inicial: InventarioMedicamento[] }) {
+export default function InventarioCliente({
+  inicial,
+  esAdmin = true,
+}: {
+  inicial: InventarioMedicamento[];
+  esAdmin?: boolean;
+}) {
   const supabase = createClient();
   const [items, setItems] = useState<InventarioMedicamento[]>(inicial);
   const [mostrarAlta, setMostrarAlta] = useState(false);
@@ -89,12 +95,14 @@ export default function InventarioCliente({ inicial }: { inicial: InventarioMedi
           onChange={(e) => setFiltro(e.target.value)}
         />
         {bajos > 0 && <span className="badge bg-amber-100 text-amber-800">{bajos} por resurtir</span>}
-        <button onClick={() => setMostrarAlta((v) => !v)} className="btn btn-primary ml-auto">
-          {mostrarAlta ? "Cancelar" : "➕ Dar de alta"}
-        </button>
+        {esAdmin && (
+          <button onClick={() => setMostrarAlta((v) => !v)} className="btn btn-primary ml-auto">
+            {mostrarAlta ? "Cancelar" : "➕ Dar de alta"}
+          </button>
+        )}
       </div>
 
-      {mostrarAlta && (
+      {esAdmin && mostrarAlta && (
         <form onSubmit={crear} className="card space-y-3 p-5">
           <h3 className="font-semibold text-slate-800">Nuevo medicamento</h3>
           <div>
@@ -141,6 +149,7 @@ export default function InventarioCliente({ inicial }: { inicial: InventarioMedi
             <FilaInventario
               key={item.id}
               item={item}
+              esAdmin={esAdmin}
               onAjustar={ajustar}
               onGuardar={guardarEdicion}
               onEliminar={eliminar}
@@ -154,11 +163,13 @@ export default function InventarioCliente({ inicial }: { inicial: InventarioMedi
 
 function FilaInventario({
   item,
+  esAdmin,
   onAjustar,
   onGuardar,
   onEliminar,
 }: {
   item: InventarioMedicamento;
+  esAdmin: boolean;
   onAjustar: (i: InventarioMedicamento, d: number) => void;
   onGuardar: (id: string, c: Partial<InventarioMedicamento>) => void;
   onEliminar: (id: string) => void;
@@ -190,7 +201,11 @@ function FilaInventario({
           </div>
         </div>
 
-        {!editando ? (
+        {!esAdmin ? (
+          <span className="text-lg font-bold text-slate-800">
+            {Number(item.cantidad)}<span className="ml-1 text-xs font-normal text-slate-400">{item.unidad}</span>
+          </span>
+        ) : !editando ? (
           <>
             <div className="flex items-center gap-1">
               <button onClick={() => onAjustar(item, -1)} className="btn btn-secondary btn-sm">−</button>

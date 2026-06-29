@@ -12,10 +12,11 @@ export default async function VisitasPage({
   const { paciente } = await searchParams;
   const supabase = await createClient();
 
-  const [salidas, visitas, pacientes] = await Promise.all([
+  const [salidas, visitas, pacientes, personal] = await Promise.all([
     supabase.from("salidas").select("*, pacientes(nombre)").order("fecha_salida", { ascending: false }),
     supabase.from("visitas").select("*, pacientes(nombre)").order("fecha", { ascending: false }).limit(100),
     supabase.from("pacientes").select("id, nombre").eq("activo", true).order("nombre"),
+    supabase.from("personal").select("id, nombre").eq("activo", true).order("nombre"),
   ]);
 
   return (
@@ -28,6 +29,7 @@ export default async function VisitasPage({
         salidas={salidas.data ?? []}
         visitas={visitas.data ?? []}
         pacientes={pacientes.data ?? []}
+        personal={personal.data ?? []}
         pacienteInicial={paciente ?? ""}
       />
     </div>

@@ -3,10 +3,13 @@
 export type Turno = "matutino" | "vespertino" | "nocturno";
 export type TipoMedicamento = "pastilla" | "ml" | "otro";
 
+export type Rol = "admin" | "enfermero";
+
 export interface Personal {
   id: string;
   user_id: string | null;
   nombre: string;
+  rol: Rol;
   puesto: string | null;
   turno: "matutino" | "vespertino" | "nocturno" | "mixto" | null;
   telefono: string | null;
@@ -151,6 +154,10 @@ export interface Salida {
   condicion_fisica_regreso: string | null;
   firma_salida_url: string | null;
   firma_regreso_url: string | null;
+  enfermero_entrega_id: string | null;
+  enfermero_recibe_id: string | null;
+  firma_salida_enfermero_url: string | null;
+  firma_regreso_enfermero_url: string | null;
   estado: "fuera" | "regresado";
   notas: string | null;
   created_at: string;
@@ -162,4 +169,27 @@ export interface MenuSemanal {
   dia: string;
   tiempo: string;
   descripcion: string;
+}
+
+export interface ActividadProgramada {
+  id: string;
+  titulo: string;
+  descripcion: string | null;
+  paciente_id: string | null;
+  hora: string; // "HH:MM:SS"
+  dias_semana: number[]; // 0=domingo .. 6=sábado
+  activo: boolean;
+  creado_por: string | null;
+  created_at: string;
+}
+
+export interface ActividadCompletada {
+  id: string;
+  actividad_id: string;
+  fecha: string;
+  completada_at: string;
+  enfermero_id: string | null;
+  a_tiempo: boolean;
+  motivo_retraso: string | null;
+  notas: string | null;
 }

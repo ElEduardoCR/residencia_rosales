@@ -17,11 +17,13 @@ export default function PacienteDetalle({
   personal,
   obligatorios,
   salidas,
+  esAdmin,
 }: {
   paciente: Paciente;
   personal: PersonalMin[];
   obligatorios: MedicamentoPaciente[];
   salidas: Salida[];
+  esAdmin: boolean;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -66,12 +68,14 @@ export default function PacienteDetalle({
               {paciente.imc && ` · IMC ${paciente.imc}`}
             </p>
           </div>
-          <div className="flex gap-2">
-            <Link href={`/pacientes/${paciente.id}/editar`} className="btn btn-secondary btn-sm">Editar</Link>
-            <button onClick={cambiarActivo} className="btn btn-secondary btn-sm">
-              {paciente.activo ? "Dar de baja" : "Reactivar"}
-            </button>
-          </div>
+          {esAdmin && (
+            <div className="flex gap-2">
+              <Link href={`/pacientes/${paciente.id}/editar`} className="btn btn-secondary btn-sm">Editar</Link>
+              <button onClick={cambiarActivo} className="btn btn-secondary btn-sm">
+                {paciente.activo ? "Dar de baja" : "Reactivar"}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -97,7 +101,7 @@ export default function PacienteDetalle({
         <RegistroDiario pacienteId={paciente.id} personal={personal} obligatorios={obligatorios} />
       )}
       {tab === "medicamentos" && (
-        <MedicamentosPaciente pacienteId={paciente.id} inicial={obligatorios} />
+        <MedicamentosPaciente pacienteId={paciente.id} inicial={obligatorios} esAdmin={esAdmin} />
       )}
       {tab === "salidas" && <SalidasTab paciente={paciente} salidas={salidas} />}
     </div>

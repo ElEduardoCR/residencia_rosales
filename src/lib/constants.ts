@@ -36,6 +36,17 @@ export const DIAS_SEMANA = [
   { value: "domingo", label: "Domingo" },
 ];
 
+// Días para actividades programadas (0=domingo .. 6=sábado, como JS getDay()).
+export const DIAS_NUM = [
+  { n: 1, label: "Lun" },
+  { n: 2, label: "Mar" },
+  { n: 3, label: "Mié" },
+  { n: 4, label: "Jue" },
+  { n: 5, label: "Vie" },
+  { n: 6, label: "Sáb" },
+  { n: 0, label: "Dom" },
+];
+
 export const TIEMPOS_COMIDA = [
   { value: "desayuno", label: "Desayuno" },
   { value: "colacion_matutina", label: "Colación matutina" },

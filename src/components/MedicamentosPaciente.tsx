@@ -9,9 +9,11 @@ import MedicamentoAutocomplete from "./MedicamentoAutocomplete";
 export default function MedicamentosPaciente({
   pacienteId,
   inicial,
+  esAdmin = true,
 }: {
   pacienteId: string;
   inicial: MedicamentoPaciente[];
+  esAdmin?: boolean;
 }) {
   const supabase = createClient();
   const [lista, setLista] = useState<MedicamentoPaciente[]>(inicial);
@@ -54,6 +56,7 @@ export default function MedicamentosPaciente({
 
   return (
     <div className="space-y-4">
+      {esAdmin && (
       <div className="card p-5">
         <h3 className="mb-3 font-semibold text-slate-800">Agregar medicamento obligatorio</h3>
         <form onSubmit={agregar} className="space-y-3">
@@ -99,6 +102,7 @@ export default function MedicamentosPaciente({
           <button type="submit" className="btn btn-primary">Agregar</button>
         </form>
       </div>
+      )}
 
       {lista.length === 0 ? (
         <p className="text-sm text-slate-400">Sin medicamentos obligatorios.</p>
@@ -113,7 +117,9 @@ export default function MedicamentosPaciente({
                   {m.turnos.length > 0 && ` · ${m.turnos.join(", ")}`}
                 </div>
               </div>
-              <button onClick={() => eliminar(m.id)} className="btn btn-danger btn-sm">Eliminar</button>
+              {esAdmin && (
+                <button onClick={() => eliminar(m.id)} className="btn btn-danger btn-sm">Eliminar</button>
+              )}
             </div>
           ))}
         </div>

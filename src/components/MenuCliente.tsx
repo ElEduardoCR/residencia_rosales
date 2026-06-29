@@ -5,7 +5,13 @@ import { createClient } from "@/lib/supabase/client";
 import { DIAS_SEMANA, TIEMPOS_COMIDA } from "@/lib/constants";
 import type { MenuSemanal } from "@/lib/types";
 
-export default function MenuCliente({ inicial }: { inicial: MenuSemanal[] }) {
+export default function MenuCliente({
+  inicial,
+  esAdmin = true,
+}: {
+  inicial: MenuSemanal[];
+  esAdmin?: boolean;
+}) {
   const supabase = createClient();
   const [guardado, setGuardado] = useState<string | null>(null);
 
@@ -52,12 +58,13 @@ export default function MenuCliente({ inicial }: { inicial: MenuSemanal[] }) {
                   <td key={key} className="p-1">
                     <textarea
                       value={valores[key] ?? ""}
+                      readOnly={!esAdmin}
                       onChange={(e) => set(d.value, t.value, e.target.value)}
-                      onBlur={() => guardar(d.value, t.value)}
+                      onBlur={() => esAdmin && guardar(d.value, t.value)}
                       placeholder="—"
                       className={`min-h-16 w-full resize-y rounded-lg border bg-white p-2 text-sm focus:outline-none focus:ring-2 focus:ring-marca-200 ${
-                        marca ? "border-emerald-300" : "border-slate-200"
-                      }`}
+                        !esAdmin ? "bg-slate-50" : ""
+                      } ${marca ? "border-emerald-300" : "border-slate-200"}`}
                     />
                   </td>
                 );
@@ -66,7 +73,9 @@ export default function MenuCliente({ inicial }: { inicial: MenuSemanal[] }) {
           ))}
         </tbody>
       </table>
-      <p className="mt-2 text-xs text-slate-400">Los cambios se guardan automáticamente al salir de cada celda.</p>
+      {esAdmin && (
+        <p className="mt-2 text-xs text-slate-400">Los cambios se guardan automáticamente al salir de cada celda.</p>
+      )}
     </div>
   );
 }

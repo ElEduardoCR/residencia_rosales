@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getUsuarioActual } from "@/lib/auth";
 import PacienteDetalle from "@/components/PacienteDetalle";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,7 @@ export default async function PacientePage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+  const usuario = await getUsuarioActual();
 
   const [paciente, personal, obligatorios, salidas] = await Promise.all([
     supabase.from("pacientes").select("*").eq("id", id).single(),
@@ -36,6 +38,7 @@ export default async function PacientePage({
       personal={personal.data ?? []}
       obligatorios={obligatorios.data ?? []}
       salidas={salidas.data ?? []}
+      esAdmin={usuario?.esAdmin ?? false}
     />
   );
 }

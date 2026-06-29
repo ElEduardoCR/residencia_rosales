@@ -1,51 +1,30 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
-  const [modo, setModo] = useState<"login" | "registro">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
 
   async function manejarSubmit(e: React.FormEvent) {
     e.preventDefault();
     setCargando(true);
     setError(null);
-    setAviso(null);
-
-    if (modo === "login") {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        setError("Correo o contraseña incorrectos.");
-        setCargando(false);
-        return;
-      }
-      router.push("/");
-      router.refresh();
-    } else {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) {
-        setError(error.message);
-        setCargando(false);
-        return;
-      }
-      if (data.session) {
-        router.push("/");
-        router.refresh();
-      } else {
-        setAviso(
-          "Cuenta creada. Revisa tu correo para confirmarla (o desactiva la confirmación por correo en Supabase).",
-        );
-        setCargando(false);
-      }
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setError("Correo o contraseña incorrectos.");
+      setCargando(false);
+      return;
     }
+    router.push("/");
+    router.refresh();
   }
 
   return (
@@ -61,7 +40,7 @@ export default function LoginPage() {
 
         <div className="card p-6">
           <h2 className="mb-4 text-lg font-semibold text-slate-800">
-            {modo === "login" ? "Iniciar sesión" : "Crear cuenta"}
+            Iniciar sesión <span className="text-sm font-normal text-slate-400">(personal)</span>
           </h2>
 
           <form onSubmit={manejarSubmit} className="space-y-4">
@@ -82,56 +61,32 @@ export default function LoginPage() {
               <input
                 type="password"
                 required
-                minLength={6}
                 className="input"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                autoComplete={modo === "login" ? "current-password" : "new-password"}
+                autoComplete="current-password"
               />
             </div>
 
             {error && (
               <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
             )}
-            {aviso && (
-              <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                {aviso}
-              </p>
-            )}
 
             <button type="submit" disabled={cargando} className="btn btn-primary w-full">
-              {cargando
-                ? "Procesando…"
-                : modo === "login"
-                  ? "Entrar"
-                  : "Crear cuenta"}
+              {cargando ? "Entrando…" : "Entrar"}
             </button>
           </form>
 
-          <div className="mt-4 text-center text-sm text-slate-500">
-            {modo === "login" ? (
-              <button
-                onClick={() => {
-                  setModo("registro");
-                  setError(null);
-                }}
-                className="font-medium text-marca-700 hover:underline"
-              >
-                ¿No tienes cuenta? Crear una
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  setModo("login");
-                  setError(null);
-                }}
-                className="font-medium text-marca-700 hover:underline"
-              >
-                ¿Ya tienes cuenta? Iniciar sesión
-              </button>
-            )}
+          <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
+            <div className="h-px flex-1 bg-slate-200" />
+            o
+            <div className="h-px flex-1 bg-slate-200" />
           </div>
+
+          <Link href="/visitante" className="btn btn-secondary w-full">
+            👨‍👩‍👧 Soy Visitante / Familiar
+          </Link>
         </div>
       </div>
     </div>

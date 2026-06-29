@@ -7,7 +7,7 @@ import { capitalizar } from "@/lib/utils";
 import type { Personal } from "@/lib/types";
 
 const VACIO = {
-  nombre: "", puesto: "", turno: "", telefono: "", email: "",
+  nombre: "", rol: "enfermero", puesto: "", turno: "", telefono: "", email: "",
   direccion: "", contacto_emergencia: "", contacto_emergencia_tel: "", cedula: "", notas: "",
 };
 
@@ -23,7 +23,7 @@ export default function PersonalCliente({ inicial }: { inicial: Personal[] }) {
   }
   function abrirEdicion(p: Personal) {
     setForm({
-      nombre: p.nombre ?? "", puesto: p.puesto ?? "", turno: p.turno ?? "",
+      nombre: p.nombre ?? "", rol: p.rol ?? "enfermero", puesto: p.puesto ?? "", turno: p.turno ?? "",
       telefono: p.telefono ?? "", email: p.email ?? "", direccion: p.direccion ?? "",
       contacto_emergencia: p.contacto_emergencia ?? "", contacto_emergencia_tel: p.contacto_emergencia_tel ?? "",
       cedula: p.cedula ?? "", notas: p.notas ?? "",
@@ -35,6 +35,7 @@ export default function PersonalCliente({ inicial }: { inicial: Personal[] }) {
     e.preventDefault();
     const payload = {
       nombre: form.nombre.trim(),
+      rol: form.rol,
       puesto: form.puesto || null,
       turno: form.turno || null,
       telefono: form.telefono || null,
@@ -96,6 +97,13 @@ export default function PersonalCliente({ inicial }: { inicial: Personal[] }) {
               </div>
             ))}
             <div>
+              <label className="label">Rol en el sistema</label>
+              <select className="input" value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value })}>
+                <option value="enfermero">Enfermero (registra su trabajo)</option>
+                <option value="admin">Administrador (acceso total)</option>
+              </select>
+            </div>
+            <div>
               <label className="label">Turno</label>
               <select className="input" value={form.turno} onChange={(e) => setForm({ ...form, turno: e.target.value })}>
                 <option value="">—</option>
@@ -122,7 +130,10 @@ export default function PersonalCliente({ inicial }: { inicial: Personal[] }) {
             <div key={p.id} className="card p-4">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <div className="font-medium text-slate-900">{p.nombre}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-slate-900">{p.nombre}</span>
+                    {p.rol === "admin" && <span className="badge bg-marca-100 text-marca-800">Admin</span>}
+                  </div>
                   <div className="text-xs text-slate-500">
                     {[p.puesto, p.turno && capitalizar(p.turno)].filter(Boolean).join(" · ")}
                   </div>

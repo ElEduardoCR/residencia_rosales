@@ -16,11 +16,13 @@ export default function VisitasCliente({
   salidas,
   visitas,
   pacientes,
+  personal,
   pacienteInicial = "",
 }: {
   salidas: SalidaConPaciente[];
   visitas: VisitaConPaciente[];
   pacientes: PacienteMin[];
+  personal: { id: string; nombre: string }[];
   pacienteInicial?: string;
 }) {
   const supabase = createClient();
@@ -86,6 +88,7 @@ export default function VisitasCliente({
           {mostrarSalida && (
             <SalidaForm
               pacientes={pacientes}
+              personal={personal}
               pacienteInicial={pacienteInicial}
               onCreada={() => setMostrarSalida(false)}
             />

@@ -12,7 +12,7 @@ const NAV = [
   { href: "/inventario", label: "Inventario", icon: "💊" },
   { href: "/visitas", label: "Visitas y salidas", icon: "🚪" },
   { href: "/menu", label: "Menú semanal", icon: "🍽️" },
-  { href: "/personal", label: "Personal", icon: "🩺" },
+  { href: "/personal", label: "Personal", icon: "🩺", adminOnly: true },
 ];
 
 function esActivo(pathname: string, href: string) {
@@ -20,13 +20,21 @@ function esActivo(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-export default function Sidebar({ email }: { email: string }) {
+export default function Sidebar({
+  email,
+  nombre,
+  esAdmin,
+}: {
+  email: string;
+  nombre: string;
+  esAdmin: boolean;
+}) {
   const pathname = usePathname();
   const [abierto, setAbierto] = useState(false);
 
   const Enlaces = (
     <nav className="flex flex-col gap-1 px-3">
-      {NAV.map((item) => {
+      {NAV.filter((item) => esAdmin || !item.adminOnly).map((item) => {
         const activo = esActivo(pathname, item.href);
         return (
           <Link
@@ -99,8 +107,16 @@ export default function Sidebar({ email }: { email: string }) {
         <div className="flex-1 overflow-y-auto py-2">{Enlaces}</div>
 
         <div className="border-t border-slate-200 p-3">
-          <div className="mb-2 truncate px-2 text-xs text-slate-500" title={email}>
-            {email}
+          <div className="mb-2 px-2">
+            <div className="flex items-center gap-2">
+              <span className="truncate text-sm font-medium text-slate-700" title={nombre}>
+                {nombre}
+              </span>
+              <span className={`badge ${esAdmin ? "bg-marca-100 text-marca-800" : "bg-slate-100 text-slate-600"}`}>
+                {esAdmin ? "Admin" : "Enfermero"}
+              </span>
+            </div>
+            <div className="truncate text-xs text-slate-400" title={email}>{email}</div>
           </div>
           <form action="/auth/signout" method="post">
             <button type="submit" className="btn btn-secondary w-full text-sm">

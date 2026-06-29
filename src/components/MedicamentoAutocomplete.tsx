@@ -8,16 +8,36 @@ import type { MedicamentoCatalogo } from "@/lib/types";
 export default function MedicamentoAutocomplete({
   onSelect,
   placeholder = "Buscar medicamento…",
+  permitirCrear = true,
 }: {
   onSelect: (m: MedicamentoCatalogo) => void;
   placeholder?: string;
+  permitirCrear?: boolean;
 }) {
   const supabase = createClient();
   const [texto, setTexto] = useState("");
   const [resultados, setResultados] = useState<MedicamentoCatalogo[]>([]);
   const [abierto, setAbierto] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const [creando, setCreando] = useState(false);
   const cont = useRef<HTMLDivElement>(null);
+
+  async function crear(tipo: MedicamentoCatalogo["tipo"]) {
+    const nombre = texto.trim();
+    if (!nombre) return;
+    const { data } = await supabase
+      .from("medicamentos_catalogo")
+      .insert({ nombre, tipo })
+      .select("id, nombre, principio, forma, tipo")
+      .single();
+    if (data) {
+      onSelect(data);
+      setTexto("");
+      setResultados([]);
+      setAbierto(false);
+      setCreando(false);
+    }
+  }
 
   useEffect(() => {
     if (texto.trim().length < 2) {
@@ -84,6 +104,29 @@ export default function MedicamentoAutocomplete({
               <span className="text-slate-700">{m.nombre}</span>
             </button>
           ))}
+
+          {permitirCrear && !cargando && (
+            <div className="border-t border-slate-100 p-2">
+              {!creando ? (
+                <button
+                  type="button"
+                  onClick={() => setCreando(true)}
+                  className="w-full rounded-md px-2 py-1.5 text-left text-sm text-marca-700 hover:bg-marca-50"
+                >
+                  ➕ Agregar «{texto.trim()}» como nuevo medicamento
+                </button>
+              ) : (
+                <div className="px-1 py-1">
+                  <div className="mb-1 text-xs text-slate-500">¿Qué tipo es «{texto.trim()}»?</div>
+                  <div className="flex gap-1">
+                    <button type="button" onClick={() => crear("pastilla")} className="btn btn-secondary btn-sm">Pastilla</button>
+                    <button type="button" onClick={() => crear("ml")} className="btn btn-secondary btn-sm">Líquido (ml)</button>
+                    <button type="button" onClick={() => crear("otro")} className="btn btn-secondary btn-sm">Otro</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
