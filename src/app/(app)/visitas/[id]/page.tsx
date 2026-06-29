@@ -1,0 +1,109 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { PageHeader } from "@/components/ui";
+import RegresoForm from "@/components/RegresoForm";
+import { formatFecha, diasEntre } from "@/lib/utils";
+import type { ItemInventarioSalida } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
+
+export default async function SalidaDetalle({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data: salida } = await supabase
+    .from("salidas")
+    .select("*, pacientes(nombre)")
+    .eq("id", id)
+    .single();
+
+  if (!salida) notFound();
+
+  const inventario = (salida.inventario ?? []) as ItemInventarioSalida[];
+  const fin = salida.fecha_regreso ?? new Date().toISOString().slice(0, 10);
+  const dias = diasEntre(salida.fecha_salida, fin);
+
+  return (
+    <div>
+      <PageHeader
+        title="Detalle de salida"
+        subtitle={salida.pacientes?.nombre ?? undefined}
+        action={
+          <Link href="/visitas" className="btn btn-secondary btn-sm">← Volver</Link>
+        }
+      />
+
+      <div className="space-y-5">
+        <div className="card grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+          <Dato label="Paciente">{salida.pacientes?.nombre}</Dato>
+          <Dato label="Lo lleva">{salida.quien_lo_lleva}</Dato>
+          <Dato label="Parentesco">{salida.parentesco}</Dato>
+          <Dato label="Salida">{formatFecha(salida.fecha_salida)} {salida.hora_salida ?? ""}</Dato>
+          <Dato label="Regreso estimado">{formatFecha(salida.fecha_regreso_estimada)}</Dato>
+          <Dato label="Estado">
+            <span className={`badge ${salida.estado === "fuera" ? "bg-sky-100 text-sky-700" : "bg-emerald-100 text-emerald-700"}`}>
+              {salida.estado === "fuera" ? `Fuera (${dias} día/s)` : "Regresado"}
+            </span>
+          </Dato>
+        </div>
+
+        <div className="card p-5">
+          <h3 className="mb-3 font-semibold text-slate-800">Inventario que llevó</h3>
+          {inventario.length === 0 ? (
+            <p className="text-sm text-slate-400">Sin artículos.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {inventario.map((it, i) => (
+                <span key={i} className={`badge ${it.llevado ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400 line-through"}`}>
+                  {it.llevado ? "✓" : "✕"} {it.nombre}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="card p-5">
+            <h3 className="mb-2 font-semibold text-slate-800">Condición física al salir</h3>
+            <p className="text-sm text-slate-600">{salida.condicion_fisica_salida || "—"}</p>
+            {salida.firma_salida_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={salida.firma_salida_url} alt="Firma de salida" className="mt-3 h-28 rounded-lg border border-slate-200 bg-white" />
+            )}
+          </div>
+
+          <div className="card p-5">
+            <h3 className="mb-2 font-semibold text-slate-800">Regreso</h3>
+            {salida.estado === "regresado" ? (
+              <>
+                <p className="text-sm text-slate-600">
+                  {formatFecha(salida.fecha_regreso)} {salida.hora_regreso ?? ""}
+                </p>
+                <p className="mt-1 text-sm text-slate-600">{salida.condicion_fisica_regreso || "—"}</p>
+                {salida.firma_regreso_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={salida.firma_regreso_url} alt="Firma de regreso" className="mt-3 h-28 rounded-lg border border-slate-200 bg-white" />
+                )}
+              </>
+            ) : (
+              <RegresoForm salida={salida} />
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Dato({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</div>
+      <div className="mt-0.5 text-sm text-slate-800">{children || "—"}</div>
+    </div>
+  );
+}
