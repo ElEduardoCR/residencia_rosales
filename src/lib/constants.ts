@@ -3,6 +3,12 @@ import type { Turno } from "./types";
 /** Mililitros por vaso de agua. */
 export const ML_POR_VASO = 235;
 
+/** Zona horaria de la residencia (para actividades programadas y recordatorios). */
+export const ZONA_HORARIA = "America/Mexico_City";
+
+/** Minutos de tolerancia antes de considerar una actividad "atrasada". */
+export const TOLERANCIA_MIN = 30;
+
 export const TURNOS: { value: Turno; label: string }[] = [
   { value: "matutino", label: "Matutino" },
   { value: "vespertino", label: "Vespertino" },

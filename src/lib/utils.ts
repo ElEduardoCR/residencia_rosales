@@ -51,3 +51,37 @@ export function iniciales(nombre: string): string {
 export function capitalizar(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+/** Fecha (YYYY-MM-DD) de hoy en una zona horaria dada. */
+export function fechaEnZona(tz: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${g("year")}-${g("month")}-${g("day")}`;
+}
+
+/** "HH:MM:SS" o "HH:MM" -> "HH:MM". */
+export function horaCorta(hora: string | null): string {
+  if (!hora) return "";
+  return hora.slice(0, 5);
+}
+
+/** Día de la semana (0=domingo) y minutos del día actuales en una zona horaria. */
+export function ahoraEnZona(tz: string): { diaSemana: number; minutos: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hour12: false,
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(new Date());
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const wd: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  let hh = parseInt(g("hour"), 10);
+  if (hh === 24) hh = 0;
+  return { diaSemana: wd[g("weekday")] ?? 0, minutos: hh * 60 + parseInt(g("minute"), 10) };
+}

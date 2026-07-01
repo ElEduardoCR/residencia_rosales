@@ -1,34 +1,79 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getUsuarioActual } from "@/lib/auth";
 import { Stat } from "@/components/ui";
+import NotificacionesToggle from "@/components/NotificacionesToggle";
+import { ahoraEnZona, fechaEnZona, horaCorta } from "@/lib/utils";
+import { ZONA_HORARIA, TOLERANCIA_MIN } from "@/lib/constants";
+
+export const dynamic = "force-dynamic";
 
 export default async function Inicio() {
   const supabase = await createClient();
+  const usuario = await getUsuarioActual();
+  const esAdmin = usuario?.esAdmin ?? false;
+  const fecha = fechaEnZona(ZONA_HORARIA);
+  const { diaSemana, minutos } = ahoraEnZona(ZONA_HORARIA);
 
-  const [pacientes, inventario, salidas, personal] = await Promise.all([
+  const [pacientes, inventario, salidas, personal, programadas, completadas] = await Promise.all([
     supabase.from("pacientes").select("id", { count: "exact", head: true }).eq("activo", true),
     supabase.from("inventario_medicamentos").select("nombre, cantidad, minimo, unidad"),
     supabase.from("salidas").select("id", { count: "exact", head: true }).eq("estado", "fuera"),
     supabase.from("personal").select("id", { count: "exact", head: true }).eq("activo", true),
+    supabase.from("actividades_programadas").select("*").eq("activo", true).order("hora"),
+    supabase.from("actividades_completadas").select("actividad_id").eq("fecha", fecha),
   ]);
 
   const items = inventario.data ?? [];
   const bajos = items.filter((m) => Number(m.cantidad) <= Number(m.minimo));
 
+  const hechas = new Set((completadas.data ?? []).map((c) => c.actividad_id));
+  const proximas = (programadas.data ?? [])
+    .filter((a) => a.dias_semana?.includes(diaSemana) && !hechas.has(a.id))
+    .map((a) => {
+      const [h, m] = String(a.hora).split(":").map(Number);
+      return { ...a, atrasada: minutos > h * 60 + m + TOLERANCIA_MIN };
+    });
+
   const accesos = [
-    { href: "/pacientes/nuevo", label: "Alta de paciente", icon: "➕" },
-    { href: "/actividades", label: "Registrar actividades", icon: "📋" },
+    { href: "/pacientes/nuevo", label: "Alta de paciente", icon: "➕", adminOnly: true },
+    { href: "/actividades", label: "Actividades", icon: "📋" },
     { href: "/inventario", label: "Inventario", icon: "💊" },
     { href: "/visitas", label: "Visitas y salidas", icon: "🚪" },
     { href: "/menu", label: "Menú semanal", icon: "🍽️" },
-    { href: "/personal", label: "Personal", icon: "🩺" },
-  ];
+    { href: "/personal", label: "Personal", icon: "🩺", adminOnly: true },
+  ].filter((a) => esAdmin || !a.adminOnly);
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Panel general</h1>
-        <p className="mt-1 text-sm text-slate-500">Resumen de la residencia</p>
+        <p className="mt-1 text-sm text-slate-500">Hola {usuario?.nombre}, este es el resumen de hoy</p>
+      </div>
+
+      <div className="mb-6">
+        <NotificacionesToggle />
+      </div>
+
+      {/* Próximas actividades */}
+      <div className="card mb-6 p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-semibold text-slate-800">🔔 Próximas actividades</h2>
+          <Link href="/actividades" className="text-sm font-medium text-marca-700 hover:underline">Ver todas →</Link>
+        </div>
+        {proximas.length === 0 ? (
+          <p className="text-sm text-slate-400">No hay actividades pendientes para hoy. 🎉</p>
+        ) : (
+          <div className="space-y-2">
+            {proximas.map((a) => (
+              <div key={a.id} className="flex items-center gap-3 rounded-lg border border-slate-100 px-3 py-2">
+                <span className="font-mono text-sm font-semibold text-marca-700">{horaCorta(a.hora)}</span>
+                <span className="flex-1 text-sm text-slate-700">{a.titulo}</span>
+                {a.atrasada && <span className="badge bg-amber-100 text-amber-800">Atrasada</span>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -41,7 +86,7 @@ export default async function Inicio() {
           hint={bajos.length > 0 ? "Requieren resurtido" : "Todo en orden"}
         />
         <Stat label="Pacientes fuera" value={salidas.count ?? 0} href="/visitas" tono="sky" />
-        <Stat label="Personal activo" value={personal.count ?? 0} href="/personal" />
+        <Stat label="Personal activo" value={personal.count ?? 0} href={esAdmin ? "/personal" : undefined} />
       </div>
 
       {bajos.length > 0 && (
