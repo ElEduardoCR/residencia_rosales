@@ -53,17 +53,30 @@ export default function FotoUpload({
         )}
       </div>
       <div className="space-y-1">
-        <label className="btn btn-secondary btn-sm cursor-pointer">
-          {subiendo ? "Subiendo…" : url ? "Cambiar foto" : "Subir foto"}
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={subir}
-            disabled={subiendo}
-          />
-        </label>
+        <div className="flex flex-wrap gap-2">
+          <label className="btn btn-secondary btn-sm cursor-pointer">
+            🖼️ Galería
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={subir}
+              disabled={subiendo}
+            />
+          </label>
+          <label className="btn btn-secondary btn-sm cursor-pointer">
+            📷 Cámara
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={subir}
+              disabled={subiendo}
+            />
+          </label>
+        </div>
+        {subiendo && <p className="text-xs text-slate-400">Subiendo foto…</p>}
         {url && (
           <button
             type="button"
