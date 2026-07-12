@@ -5,23 +5,26 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { calcularEdad, formatFecha, iniciales } from "@/lib/utils";
-import type { Paciente, MedicamentoPaciente, Salida } from "@/lib/types";
+import type { Paciente, MedicamentoPaciente, Salida, InventarioPaciente } from "@/lib/types";
 import RegistroDiario from "./RegistroDiario";
 import MedicamentosPaciente from "./MedicamentosPaciente";
+import InventarioPacienteCliente from "./InventarioPacienteCliente";
 
 type PersonalMin = { id: string; nombre: string };
-type Tab = "info" | "actividades" | "medicamentos" | "salidas";
+type Tab = "info" | "actividades" | "medicamentos" | "inventario" | "salidas";
 
 export default function PacienteDetalle({
   paciente,
   personal,
   obligatorios,
+  inventario,
   salidas,
   esAdmin,
 }: {
   paciente: Paciente;
   personal: PersonalMin[];
   obligatorios: MedicamentoPaciente[];
+  inventario: InventarioPaciente[];
   salidas: Salida[];
   esAdmin: boolean;
 }) {
@@ -39,6 +42,7 @@ export default function PacienteDetalle({
     { id: "info", label: "Información" },
     { id: "actividades", label: "Actividades" },
     { id: "medicamentos", label: "Medicamentos" },
+    { id: "inventario", label: "Inventario" },
     { id: "salidas", label: "Salidas" },
   ];
 
@@ -102,6 +106,9 @@ export default function PacienteDetalle({
       )}
       {tab === "medicamentos" && (
         <MedicamentosPaciente pacienteId={paciente.id} inicial={obligatorios} esAdmin={esAdmin} />
+      )}
+      {tab === "inventario" && (
+        <InventarioPacienteCliente pacienteId={paciente.id} inicial={inventario} />
       )}
       {tab === "salidas" && <SalidasTab paciente={paciente} salidas={salidas} />}
     </div>

@@ -14,7 +14,7 @@ export default async function PacientePage({
   const supabase = await createClient();
   const usuario = await getUsuarioActual();
 
-  const [paciente, personal, obligatorios, salidas] = await Promise.all([
+  const [paciente, personal, obligatorios, inventario, salidas] = await Promise.all([
     supabase.from("pacientes").select("*").eq("id", id).single(),
     supabase.from("personal").select("id, nombre").eq("activo", true).order("nombre"),
     supabase
@@ -23,6 +23,12 @@ export default async function PacientePage({
       .eq("paciente_id", id)
       .eq("activo", true)
       .order("created_at"),
+    supabase
+      .from("inventario_paciente")
+      .select("*")
+      .eq("paciente_id", id)
+      .eq("activo", true)
+      .order("nombre"),
     supabase
       .from("salidas")
       .select("*")
@@ -37,6 +43,7 @@ export default async function PacientePage({
       paciente={paciente.data}
       personal={personal.data ?? []}
       obligatorios={obligatorios.data ?? []}
+      inventario={inventario.data ?? []}
       salidas={salidas.data ?? []}
       esAdmin={usuario?.esAdmin ?? false}
     />

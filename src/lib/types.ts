@@ -46,6 +46,25 @@ export interface InventarioMedicamento {
   updated_at: string;
 }
 
+export interface InventarioPaciente {
+  id: string;
+  paciente_id: string;
+  catalogo_id: number | null;
+  nombre: string;
+  tipo: TipoMedicamento;
+  unidad: string;
+  dosis: string | null;
+  cantidad: number;
+  minimo: number;
+  maximo: number | null;
+  lugar_compra: string | null;
+  ubicacion: string | null;
+  notas: string | null;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Paciente {
   id: string;
   foto_url: string | null;

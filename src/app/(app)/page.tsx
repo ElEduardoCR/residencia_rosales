@@ -17,14 +17,20 @@ export default async function Inicio() {
 
   const [pacientes, inventario, salidas, personal, programadas, completadas] = await Promise.all([
     supabase.from("pacientes").select("id", { count: "exact", head: true }).eq("activo", true),
-    supabase.from("inventario_medicamentos").select("nombre, cantidad, minimo, unidad"),
+    supabase.from("inventario_paciente").select("nombre, cantidad, minimo, unidad, pacientes(nombre)").eq("activo", true),
     supabase.from("salidas").select("id", { count: "exact", head: true }).eq("estado", "fuera"),
     supabase.from("personal").select("id", { count: "exact", head: true }).eq("activo", true),
     supabase.from("actividades_programadas").select("*").eq("activo", true).order("hora"),
     supabase.from("actividades_completadas").select("actividad_id").eq("fecha", fecha),
   ]);
 
-  const items = inventario.data ?? [];
+  const items = (inventario.data ?? []) as unknown as {
+    nombre: string;
+    cantidad: number;
+    minimo: number;
+    unidad: string;
+    pacientes: { nombre: string } | null;
+  }[];
   const bajos = items.filter((m) => Number(m.cantidad) <= Number(m.minimo));
 
   const hechas = new Set((completadas.data ?? []).map((c) => c.actividad_id));
@@ -96,9 +102,9 @@ export default async function Inicio() {
             <h2 className="font-semibold text-slate-800">Resurtir medicamentos</h2>
           </div>
           <div className="flex flex-wrap gap-2">
-            {bajos.map((m) => (
-              <span key={m.nombre} className="badge bg-amber-100 text-amber-800">
-                {m.nombre} · {Number(m.cantidad)} {m.unidad}
+            {bajos.map((m, idx) => (
+              <span key={idx} className="badge bg-amber-100 text-amber-800">
+                {m.nombre}{m.pacientes?.nombre ? ` (${m.pacientes.nombre})` : ""} · {Number(m.cantidad)} {m.unidad}
               </span>
             ))}
           </div>

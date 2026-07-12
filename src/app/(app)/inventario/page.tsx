@@ -1,25 +1,24 @@
 import { createClient } from "@/lib/supabase/server";
-import { getUsuarioActual } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
-import InventarioCliente from "@/components/InventarioCliente";
+import InventarioResumen from "@/components/InventarioResumen";
 
 export const dynamic = "force-dynamic";
 
 export default async function InventarioPage() {
   const supabase = await createClient();
-  const usuario = await getUsuarioActual();
   const { data } = await supabase
-    .from("inventario_medicamentos")
-    .select("*")
+    .from("inventario_paciente")
+    .select("*, pacientes(nombre)")
+    .eq("activo", true)
     .order("nombre");
 
   return (
     <div>
       <PageHeader
         title="Inventario de medicamentos"
-        subtitle="Existencias por pastilla y ml, con punto de resurtido"
+        subtitle="Resumen de existencias de todos los pacientes. El inventario se gestiona en la ficha de cada paciente."
       />
-      <InventarioCliente inicial={data ?? []} esAdmin={usuario?.esAdmin ?? false} />
+      <InventarioResumen items={data ?? []} />
     </div>
   );
 }
