@@ -95,6 +95,11 @@ export interface MedicamentoPaciente {
   dosis: string | null;
   frecuencia: string | null;
   turnos: Turno[];
+  presentacion: string | null;
+  cantidad: number;
+  minimo: number;
+  maximo: number | null;
+  lugar_compra: string | null;
   activo: boolean;
   notas: string | null;
   created_at: string;

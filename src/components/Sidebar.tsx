@@ -9,7 +9,6 @@ const NAV = [
   { href: "/", label: "Inicio", icon: "🏠" },
   { href: "/pacientes", label: "Pacientes", icon: "👴" },
   { href: "/actividades", label: "Actividades", icon: "📋" },
-  { href: "/inventario", label: "Inventario", icon: "💊" },
   { href: "/visitas", label: "Visitas y salidas", icon: "🚪" },
   { href: "/menu", label: "Menú semanal", icon: "🍽️" },
   { href: "/personal", label: "Personal", icon: "🩺", adminOnly: true },

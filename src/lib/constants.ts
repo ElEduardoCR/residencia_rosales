@@ -66,6 +66,23 @@ export const PARENTESCOS = [
   "Padre", "Madre", "Tutor legal", "Amigo(a)", "Otro",
 ];
 
+// Formas de presentación del medicamento (para inventario por paciente).
+export const PRESENTACIONES = [
+  "Pastilla",
+  "Tableta",
+  "Cápsula",
+  "ml",
+  "mg",
+  "Gotas",
+  "Jarabe",
+  "Sobre",
+  "Ampolleta",
+  "Inyección",
+  "Parche",
+  "Crema/Pomada",
+  "Otro",
+];
+
 export const TIPOS_MEDICAMENTO = [
   { value: "pastilla", label: "Pastilla (pieza)", unidad: "pieza" },
   { value: "ml", label: "Líquido (ml)", unidad: "ml" },

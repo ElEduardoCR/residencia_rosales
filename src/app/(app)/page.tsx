@@ -17,7 +17,7 @@ export default async function Inicio() {
 
   const [pacientes, inventario, salidas, personal, programadas, completadas] = await Promise.all([
     supabase.from("pacientes").select("id", { count: "exact", head: true }).eq("activo", true),
-    supabase.from("inventario_paciente").select("nombre, cantidad, minimo, unidad, pacientes(nombre)").eq("activo", true),
+    supabase.from("medicamentos_paciente").select("medicamento_nombre, cantidad, minimo, presentacion, paciente_id, pacientes(nombre)").eq("activo", true),
     supabase.from("salidas").select("id", { count: "exact", head: true }).eq("estado", "fuera"),
     supabase.from("personal").select("id", { count: "exact", head: true }).eq("activo", true),
     supabase.from("actividades_programadas").select("*").eq("activo", true).order("hora"),
@@ -25,13 +25,14 @@ export default async function Inicio() {
   ]);
 
   const items = (inventario.data ?? []) as unknown as {
-    nombre: string;
+    medicamento_nombre: string;
     cantidad: number;
     minimo: number;
-    unidad: string;
+    presentacion: string | null;
+    paciente_id: string;
     pacientes: { nombre: string } | null;
   }[];
-  const bajos = items.filter((m) => Number(m.cantidad) <= Number(m.minimo));
+  const bajos = items.filter((m) => Number(m.minimo) > 0 && Number(m.cantidad) <= Number(m.minimo));
 
   const hechas = new Set((completadas.data ?? []).map((c) => c.actividad_id));
   const proximas = (programadas.data ?? [])
@@ -44,7 +45,6 @@ export default async function Inicio() {
   const accesos = [
     { href: "/pacientes/nuevo", label: "Alta de paciente", icon: "➕", adminOnly: true },
     { href: "/actividades", label: "Actividades", icon: "📋" },
-    { href: "/inventario", label: "Inventario", icon: "💊" },
     { href: "/visitas", label: "Visitas y salidas", icon: "🚪" },
     { href: "/menu", label: "Menú semanal", icon: "🍽️" },
     { href: "/personal", label: "Personal", icon: "🩺", adminOnly: true },
@@ -87,7 +87,6 @@ export default async function Inicio() {
         <Stat
           label="Medicamentos bajo mínimo"
           value={bajos.length}
-          href="/inventario"
           tono={bajos.length > 0 ? "amber" : "emerald"}
           hint={bajos.length > 0 ? "Requieren resurtido" : "Todo en orden"}
         />
@@ -103,14 +102,11 @@ export default async function Inicio() {
           </div>
           <div className="flex flex-wrap gap-2">
             {bajos.map((m, idx) => (
-              <span key={idx} className="badge bg-amber-100 text-amber-800">
-                {m.nombre}{m.pacientes?.nombre ? ` (${m.pacientes.nombre})` : ""} · {Number(m.cantidad)} {m.unidad}
-              </span>
+              <Link key={idx} href={`/pacientes/${m.paciente_id}`} className="badge bg-amber-100 text-amber-800 hover:bg-amber-200">
+                {m.medicamento_nombre}{m.pacientes?.nombre ? ` (${m.pacientes.nombre})` : ""} · {Number(m.cantidad)} {m.presentacion ?? ""}
+              </Link>
             ))}
           </div>
-          <Link href="/inventario" className="mt-3 inline-block text-sm font-medium text-marca-700 hover:underline">
-            Ir al inventario →
-          </Link>
         </div>
       )}
 
