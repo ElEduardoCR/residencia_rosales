@@ -1,58 +1,42 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enviarPush, type SuscripcionPush } from "@/lib/push";
-import { ZONA_HORARIA } from "@/lib/constants";
+import { fechaHoraAgenda, tareaOcurreEnFecha, type AgendaTarea } from "@/lib/agenda";
+import { indicacionSinRevisar } from "@/lib/medication-verification";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Hora actual (día de la semana 0-6, fecha y minutos del día) en la zona dada. */
-function ahoraEnZona(tz: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    hour12: false,
-    weekday: "short",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).formatToParts(new Date());
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
-  const wd: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-  const diaSemana = wd[get("weekday")] ?? 0;
-  const fecha = `${get("year")}-${get("month")}-${get("day")}`;
-  let hh = parseInt(get("hour"), 10);
-  if (hh === 24) hh = 0;
-  const minutos = hh * 60 + parseInt(get("minute"), 10);
-  return { diaSemana, fecha, minutos };
-}
-
 export async function GET(request: Request) {
   const auth = request.headers.get("authorization");
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
   const admin = createAdminClient();
-  const { diaSemana, fecha, minutos } = ahoraEnZona(ZONA_HORARIA);
+  const { fecha, minutos } = fechaHoraAgenda();
 
-  const [{ data: acts }, { data: comp }, { data: subs }] = await Promise.all([
-    admin.from("actividades_programadas").select("*").eq("activo", true),
-    admin.from("actividades_completadas").select("actividad_id").eq("fecha", fecha),
-    admin.from("push_subscriptions").select("*"),
+  const [acts, comp, subs, meds] = await Promise.all([
+    admin.from("agenda_tareas").select("*", { count: "exact" }).eq("activo", true).lte("fecha_inicio", fecha).or(`fecha_fin.is.null,fecha_fin.gte.${fecha}`).limit(1000),
+    admin.from("agenda_realizaciones").select("tarea_id", { count: "exact" }).eq("fecha", fecha).limit(1000),
+    admin.from("push_subscriptions").select("*", { count: "exact" }).limit(1000),
+    admin.from("medicamentos_paciente").select("id,activo,notas", { count: "exact" }).limit(1000),
   ]);
-
-  const completadas = new Set((comp ?? []).map((c) => c.actividad_id));
-  const porNotificar = (acts ?? []).filter((a) => {
-    if (!a.dias_semana?.includes(diaSemana)) return false;
+  if ([acts, comp, subs, meds].some(r => r.error || r.count === null || r.count > 1000)) {
+    return NextResponse.json({ error: "No se pudo consultar la agenda completa" }, { status: 503 });
+  }
+  const completadas = new Set((comp.data ?? []).map(c => c.tarea_id));
+  const revisados = new Set((meds.data ?? []).filter(m => m.activo && !indicacionSinRevisar(m.notas)).map(m => m.id));
+  const porNotificar = ((acts.data ?? []) as AgendaTarea[]).filter((a) => {
+    if (!tareaOcurreEnFecha(a, fecha)) return false;
+    if (a.medicamento_id && !revisados.has(a.medicamento_id)) return false;
     if (completadas.has(a.id)) return false;
     const [h, m] = String(a.hora).split(":").map(Number);
     const diff = h * 60 + m - minutos; // minutos hasta la actividad
     return diff >= -1 && diff <= 11; // por vencer (~11 min) o recién vencida
   });
 
-  const suscripciones = (subs ?? []) as SuscripcionPush[];
+  const suscripciones = (subs.data ?? []) as SuscripcionPush[];
   if (porNotificar.length === 0 || suscripciones.length === 0) {
     return NextResponse.json({ enviadas: 0, porNotificar: porNotificar.length });
   }
@@ -62,8 +46,8 @@ export async function GET(request: Request) {
     const payload = {
       title: "🔔 Actividad programada",
       body: `${a.titulo} — ${String(a.hora).slice(0, 5)}`,
-      url: "/actividades",
-      tag: `act-${a.id}-${fecha}`,
+      url: "/agenda",
+      tag: `agenda-${a.id}-${fecha}`,
     };
     for (const s of suscripciones) {
       try {

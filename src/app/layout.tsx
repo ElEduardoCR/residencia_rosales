@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { ThemePreferences } from "@/components/ThemeToggle";
+import { THEME_BOOTSTRAP } from "@/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,8 +21,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="h-full antialiased">
-      <body className="min-h-full">{children}</body>
+    <html lang="es" className="h-full antialiased" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} /></head>
+      <body className="min-h-full"><ThemePreferences />{children}</body>
     </html>
   );
 }

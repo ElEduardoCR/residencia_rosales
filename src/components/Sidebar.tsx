@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useRef } from "react";
 import Icon, { type IconName } from "@/components/Icon";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const NAV: { href: string; label: string; icon: IconName; adminOnly?: boolean }[] = [
   { href: "/", label: "Inicio", icon: "home" },
+  { href: "/agenda", label: "Agenda por hora", icon: "clock" },
   { href: "/pacientes", label: "Pacientes", icon: "patients" },
-  { href: "/actividades", label: "Actividades", icon: "clipboard" },
+  { href: "/actividades", label: "Registro diario", icon: "clipboard" },
   { href: "/salidas", label: "Registro de salida", icon: "exit" },
   { href: "/visitas", label: "Visitas", icon: "visits" },
   { href: "/menu", label: "Menú semanal", icon: "menu" },
@@ -41,6 +43,7 @@ export default function Sidebar({ nombre, esAdmin, accesoLocal, usuario }: { nom
         </div>
       </nav>
       <div className="m-3 mt-8 rounded-2xl border border-slate-200 p-3">
+        <ThemeToggle className="mb-3 w-full justify-start" />
         <div className="mb-3 flex items-center gap-2.5">
           <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-marca-100 text-xs font-semibold text-marca-800">{iniciales}</div>
           <div className="min-w-0">

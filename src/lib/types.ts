@@ -132,6 +132,8 @@ export interface RegistroAlimentacion {
 
 export interface AdministracionMedicamento {
   id: string;
+  agenda_realizacion_id?: string | null;
+  medicamento_paciente_id?: string | null;
   paciente_id: string;
   fecha: string;
   turno: Turno | null;

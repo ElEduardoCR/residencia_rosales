@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { tareaOcurreEnFecha, type AgendaTarea } from "@/lib/agenda";
 import { medicamentoProgramado, puedeRegistrarTurno } from "@/lib/medication-schedule";
 import { createClient } from "@/lib/supabase/client";
 import { TURNOS, COMIDAS_DIA, ML_POR_VASO, ZONA_HORARIA } from "@/lib/constants";
@@ -39,6 +40,7 @@ function RegistroDelDia({ pacienteId, personal, obligatorios, fecha, setFecha }:
   });
   const [alim, setAlim] = useState<RegistroAlimentacion | null>(null);
   const [admins, setAdmins] = useState<AdministracionMedicamento[]>([]);
+  const [medicamentosPorHora, setMedicamentosPorHora] = useState<string[]>([]);
 
   useEffect(() => {
     let vigente = true;
@@ -47,15 +49,17 @@ function RegistroDelDia({ pacienteId, personal, obligatorios, fecha, setFecha }:
       supabase.from("registros_turno").select("*").eq("paciente_id", pacienteId).eq("fecha", fecha).abortSignal(abort.signal),
       supabase.from("registros_alimentacion").select("*").eq("paciente_id", pacienteId).eq("fecha", fecha).abortSignal(abort.signal).maybeSingle(),
       supabase.from("administracion_medicamentos").select("*").eq("paciente_id", pacienteId).eq("fecha", fecha).abortSignal(abort.signal),
-    ]).then(([rt, ra, am]) => {
+      supabase.from("agenda_tareas").select("*").eq("paciente_id", pacienteId).eq("tipo", "medicamento").eq("activo", true).lte("fecha_inicio", fecha).or(`fecha_fin.is.null,fecha_fin.gte.${fecha}`).abortSignal(abort.signal),
+    ]).then(([rt, ra, am, ag]) => {
       if (!vigente) return;
-      if (rt.error || ra.error || am.error) {
+      if (rt.error || ra.error || am.error || ag.error) {
         setFalloCarga(true);
         setError("No se pudo cargar el registro completo. Actualiza la página antes de registrar nuevas actividades.");
       } else {
         const map: Record<Turno, RegistroTurno | null> = { matutino: null, vespertino: null, nocturno: null };
         (rt.data ?? []).forEach((r) => (map[r.turno as Turno] = r));
         setTurnos(map); setAlim(ra.data ?? null); setAdmins(am.data ?? []);
+        setMedicamentosPorHora((ag.data ?? []).filter(t => tareaOcurreEnFecha(t as AgendaTarea, fecha)).map(t => t.medicamento_id as string));
       }
       setCargando(false);
     }, () => {
@@ -135,6 +139,7 @@ function RegistroDelDia({ pacienteId, personal, obligatorios, fecha, setFecha }:
   }
 
   async function toggleObligatorio(med: MedicamentoPaciente, turno: Turno) {
+    if (idsPorHora.has(med.id)) return setError("Este medicamento tiene registro por hora. Regístralo desde la agenda para evitar duplicarlo.");
     if (!puedeRegistrarTurno(med, turno)) return setError("La indicación debe revisarse y tener un turno programado antes de registrar su administración.");
     await registrar(async () => {
     const existente = adminDe(med.medicamento_nombre, turno, "obligatorio");
@@ -150,6 +155,7 @@ function RegistroDelDia({ pacienteId, personal, obligatorios, fecha, setFecha }:
           fecha,
           turno,
           inventario_id: med.inventario_id,
+          medicamento_paciente_id: med.id,
           medicamento_nombre: med.medicamento_nombre,
           tipo: "obligatorio",
           dosis: med.dosis,
@@ -200,9 +206,11 @@ function RegistroDelDia({ pacienteId, personal, obligatorios, fecha, setFecha }:
   }
 
   const extras = admins.filter((a) => a.tipo === "extra");
+  const desdeAgenda = admins.filter((a) => a.agenda_realizacion_id);
+  const idsPorHora = new Set([...medicamentosPorHora, ...desdeAgenda.flatMap(a => a.medicamento_paciente_id ? [a.medicamento_paciente_id] : [])]);
   const vasos = alim?.vasos_agua ?? 0;
   const programados = obligatorios.filter(medicamentoProgramado);
-  const pendientes = obligatorios.filter((med) => !medicamentoProgramado(med));
+  const pendientes = obligatorios.filter((med) => !medicamentoProgramado(med) && !idsPorHora.has(med.id));
 
   return (
     <div className="space-y-5">
@@ -303,6 +311,7 @@ function RegistroDelDia({ pacienteId, personal, obligatorios, fecha, setFecha }:
       <div className="card p-5">
         <h3 className="mb-1 font-semibold text-slate-800">Medicamentos programados</h3>
         <p className="mb-3 text-xs text-slate-500">Marca el turno en que se administró cada medicamento.</p>
+        {idsPorHora.size > 0 && <p className="mb-4 rounded-xl bg-marca-50 p-4 text-sm text-marca-800">{idsPorHora.size} medicamento(s) con seguimiento por hora. <Link href={`/agenda?fecha=${fecha}`} className="font-medium underline">Registrar en la agenda</Link></p>}
         {pendientes.length > 0 && <div className="mb-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-800"><p>{pendientes.length} medicamento(s) sin programación o pendientes de revisión. No se habilitan como administración programada.</p><Link href={`/pacientes/${pacienteId}?tab=medicamentos`} className="mt-2 inline-block font-medium underline">Revisar medicamentos e indicaciones</Link></div>}
         {programados.length === 0 ? (
           <p className="text-sm text-slate-400">No hay medicamentos revisados con turnos programados.</p>
@@ -315,10 +324,11 @@ function RegistroDelDia({ pacienteId, personal, obligatorios, fecha, setFecha }:
                   <div>
                     <div className="font-medium text-slate-800">{med.medicamento_nombre}</div>
                     {med.dosis && <div className="text-xs text-slate-500">{med.dosis}</div>}
+                    {idsPorHora.has(med.id) && <Link href={`/agenda?fecha=${fecha}`} className="mt-1 block text-xs font-medium text-marca-700 underline">Programado por hora · registrar en agenda</Link>}
                   </div>
                   <div className="flex gap-1">
                     {TURNOS.map((t) => {
-                      const aplica = turnosMed.includes(t.value);
+                      const aplica = turnosMed.includes(t.value) && !idsPorHora.has(med.id);
                       const dado = !!adminDe(med.medicamento_nombre, t.value, "obligatorio");
                       return (
                         <button
@@ -345,6 +355,14 @@ function RegistroDelDia({ pacienteId, personal, obligatorios, fecha, setFecha }:
           </div>
         )}
       </div>
+
+      {desdeAgenda.length > 0 && <section className="card p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 className="font-semibold text-slate-800">Medicamentos realizados en la agenda</h3><Link href={`/agenda?fecha=${fecha}`} className="text-sm font-medium text-marca-700 underline">Ver agenda</Link></div>
+        <div className="space-y-3">{desdeAgenda.map((a) => <div key={a.id} className="rounded-xl border border-slate-200 p-3 text-sm">
+          <p className="font-medium text-slate-800">{a.medicamento_nombre}{a.dosis ? ` · ${a.dosis}` : ""}</p>
+          <p className="mt-1 text-slate-600">Realizado por {personal.find((p) => p.id === a.enfermero_id)?.nombre ?? "Personal registrado"} · {a.hora?.slice(0, 5) ?? "Hora registrada en agenda"}</p>
+        </div>)}</div>
+      </section>}
 
       {/* Medicamento extra */}
       <div className="card p-5">

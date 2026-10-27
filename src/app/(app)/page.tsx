@@ -6,7 +6,7 @@ import { Stat } from "@/components/ui";
 import Icon, { type IconName } from "@/components/Icon";
 import NotificacionesToggle from "@/components/NotificacionesToggle";
 import { ahoraEnZona, fechaEnZona, horaCorta } from "@/lib/utils";
-import { ZONA_HORARIA, TOLERANCIA_MIN } from "@/lib/constants";
+import { ZONA_HORARIA } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +22,8 @@ export default async function Inicio() {
     supabase.from("medicamentos_paciente").select("medicamento_nombre, cantidad, minimo, presentacion, notas, paciente_id, pacientes(nombre)").eq("activo", true),
     supabase.from("salidas").select("id", { count: "exact", head: true }).eq("estado", "fuera"),
     supabase.from("personal").select("id", { count: "exact", head: true }).eq("activo", true),
-    supabase.from("actividades_programadas").select("*").eq("activo", true).order("hora"),
-    supabase.from("actividades_completadas").select("actividad_id").eq("fecha", fecha),
+    supabase.from("agenda_tareas").select("id,titulo,hora,dias_semana,pacientes(nombre)").eq("activo", true).lte("fecha_inicio", fecha).or(`fecha_fin.is.null,fecha_fin.gte.${fecha}`).order("hora"),
+    supabase.from("agenda_realizaciones").select("tarea_id").eq("fecha", fecha),
   ]);
 
   const items = (inventario.data ?? []) as unknown as {
@@ -38,15 +38,17 @@ export default async function Inicio() {
   const sinConteo = items.filter(m => existenciasSinVerificar(m.notas));
   const bajos = items.filter((m) => !existenciasSinVerificar(m.notas) && Number(m.minimo) > 0 && Number(m.cantidad) <= Number(m.minimo));
 
-  const hechas = new Set((completadas.data ?? []).map((c) => c.actividad_id));
+  const hechas = new Set((completadas.data ?? []).map((c) => c.tarea_id));
   const proximas = (programadas.data ?? [])
     .filter((a) => a.dias_semana?.includes(diaSemana) && !hechas.has(a.id))
     .map((a) => {
       const [h, m] = String(a.hora).split(":").map(Number);
-      return { ...a, atrasada: minutos > h * 60 + m + TOLERANCIA_MIN };
+      const paciente = a.pacientes as unknown as { nombre: string } | null;
+      return { ...a, pacienteNombre: paciente?.nombre, atrasada: minutos > h * 60 + m };
     });
 
   const accesos: { href: string; label: string; description: string; icon: IconName; adminOnly?: boolean }[] = [
+    { href: "/agenda", label: "Agenda por hora", description: "Tareas, responsables y seguimiento", icon: "clock" },
     { href: "/pacientes", label: "Pacientes", description: "Expedientes y tratamientos", icon: "patients" },
     { href: "/salidas", label: "Registro de salida", description: "Acompañantes, pertenencias y firmas", icon: "exit" },
     { href: "/menu", label: "Menú semanal", description: "La alimentación de cada día", icon: "menu" },
@@ -77,8 +79,8 @@ export default async function Inicio() {
 
     <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
       <section className="card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-5"><div className="flex items-center gap-2.5"><Icon name="clock" className="text-marca-700" /><h2 className="section-title">La agenda de hoy</h2></div><Link href="/actividades" className="inline-flex min-h-10 items-center gap-1 text-xs font-semibold text-marca-700 hover:underline">Ver actividades<Icon name="arrow" width="15" height="15" /></Link></div>
-        {programadas.error || completadas.error ? <p className="px-6 py-10 text-sm text-slate-500">No se pudo consultar la agenda.</p> : proximas.length === 0 ? <div className="flex flex-col items-center px-6 py-12 text-center"><div className="icon-tile mb-4"><Icon name="check" width="24" height="24" /></div><h3 className="font-semibold text-slate-700">Todo al día</h3><p className="mt-1.5 max-w-xs text-sm text-slate-500">No hay actividades pendientes para hoy.</p><Link href="/actividades" className="btn btn-secondary mt-5">Consultar actividades</Link></div> : <div className="divide-y divide-slate-100 px-6">{proximas.slice(0, 6).map((a) => <div key={a.id} className="flex flex-wrap items-center gap-3 py-4"><span className="w-14 text-sm font-semibold tabular-nums text-marca-700">{horaCorta(a.hora)}</span><span className="min-w-0 flex-1 text-sm font-medium text-slate-700">{a.titulo}</span>{a.atrasada && <span className="badge bg-amber-100 text-amber-800">Atrasada</span>}</div>)}{proximas.length > 6 && <Link href="/actividades" className="block py-4 text-sm font-medium text-marca-700">Ver las {proximas.length} actividades pendientes →</Link>}</div>}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-5"><div className="flex items-center gap-2.5"><Icon name="clock" className="text-marca-700" /><h2 className="section-title">La agenda de hoy</h2></div><Link href="/agenda" className="inline-flex min-h-10 items-center gap-1 text-xs font-semibold text-marca-700 hover:underline">Ver línea de tiempo<Icon name="arrow" width="15" height="15" /></Link></div>
+        {programadas.error || completadas.error ? <p className="px-6 py-10 text-sm text-slate-500">No se pudo consultar la agenda.</p> : proximas.length === 0 ? <div className="flex flex-col items-center px-6 py-12 text-center"><div className="icon-tile mb-4"><Icon name="check" width="24" height="24" /></div><h3 className="font-semibold text-slate-700">{(programadas.data ?? []).length ? "Tareas de hoy realizadas" : "Organiza el día de cada paciente"}</h3><p className="mt-1.5 max-w-xs text-sm text-slate-500">{(programadas.data ?? []).length ? "No hay tareas pendientes para hoy." : "Programa los cuidados con su hora para verlos en la línea de tiempo."}</p><Link href="/agenda" className="btn btn-secondary mt-5">Abrir agenda por hora</Link></div> : <div className="divide-y divide-slate-100 px-6">{proximas.slice(0, 6).map((a) => <div key={a.id} className="flex flex-wrap items-center gap-3 py-4"><span className="w-14 text-sm font-semibold tabular-nums text-marca-700">{horaCorta(a.hora)}</span><span className="min-w-0 flex-1 text-sm font-medium text-slate-700">{a.titulo}{a.pacienteNombre && <span className="mt-0.5 block text-xs font-normal text-slate-500">{a.pacienteNombre}</span>}</span>{a.atrasada && <span className="badge bg-amber-100 text-amber-800">Atrasada</span>}</div>)}{proximas.length > 6 && <Link href="/agenda" className="block py-4 text-sm font-medium text-marca-700">Ver las {proximas.length} actividades pendientes →</Link>}</div>}
       </section>
       <section><h2 className="section-title mb-4 px-1">A un paso</h2><div className="space-y-3">{accesos.filter((a) => esAdmin || !a.adminOnly).map((a) => <Link key={a.href} href={a.href} className="card flex items-center gap-3.5 p-4 transition hover:border-marca-300 hover:shadow-md"><span className="icon-tile"><Icon name={a.icon} /></span><div className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-800">{a.label}</span><span className="mt-0.5 block text-xs text-slate-500">{a.description}</span></div><Icon name="arrow" width="17" height="17" className="shrink-0 text-slate-400" /></Link>)}</div></section>
     </div>
