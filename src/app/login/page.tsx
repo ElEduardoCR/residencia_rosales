@@ -2,31 +2,29 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { iniciarSesion } from "./actions";
 import Icon from "@/components/Icon";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function manejarSubmit(e: React.FormEvent) {
+  async function manejarSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (cargando) return;
+    const formData = new FormData(e.currentTarget);
     setCargando(true);
     setError(null);
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) { setError("No pudimos iniciar sesión. Revisa tu correo y contraseña."); return; }
-      const { data: personal, error: errorPersonal } = await supabase.from("personal").select("id").eq("user_id", data.user.id).eq("activo", true).maybeSingle();
-      if (errorPersonal || !personal) {
-        await supabase.auth.signOut();
-        setError(errorPersonal ? "No pudimos verificar tu acceso. Intenta de nuevo en un momento." : "Tu cuenta aún no está vinculada al personal activo. Contacta a administración.");
+      const resultado = await iniciarSesion(formData);
+      if (!resultado.ok) {
+        setError(resultado.error ?? "No pudimos iniciar sesión. Revisa tu usuario y contraseña.");
         return;
       }
-      router.push("/");
+      router.replace("/");
       router.refresh();
     } catch {
       setError("No se pudo conectar. Intenta de nuevo en un momento.");
@@ -47,8 +45,8 @@ export default function LoginPage() {
         <h2 className="text-xl font-semibold tracking-tight text-slate-900">Bienvenido de nuevo</h2>
         <p className="mb-6 mt-1.5 text-sm text-slate-500">Ingresa con tu cuenta de personal.</p>
         <form onSubmit={manejarSubmit} className="space-y-5" aria-busy={cargando}>
-          <div><label className="label" htmlFor="email">Correo electrónico</label><input id="email" name="email" type="email" required className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nombre@correo.com" autoComplete="email" autoCapitalize="none" /></div>
-          <div><label className="label" htmlFor="password">Contraseña</label><input id="password" name="password" type="password" required className="input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Tu contraseña" autoComplete="current-password" /></div>
+          <div><label className="label" htmlFor="username">Usuario</label><input id="username" name="username" type="text" required disabled={cargando} className="input" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Tu primer nombre" autoComplete="username" autoCapitalize="none" spellCheck={false} aria-describedby="username-ayuda" /><p id="username-ayuda" className="mt-2 text-xs leading-relaxed text-slate-500">Usa tu primer nombre. Mayúsculas y minúsculas funcionan igual.</p></div>
+          <div><label className="label" htmlFor="password">Contraseña</label><input id="password" name="password" type="password" required disabled={cargando} className="input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Tu contraseña" autoComplete="current-password" /></div>
           {error && <p role="alert" className="rounded-xl bg-red-50 px-3 py-3 text-sm text-red-700">{error}</p>}
           <button type="submit" disabled={cargando} className="btn btn-primary w-full">{cargando ? "Iniciando sesión…" : "Iniciar sesión"}{!cargando && <Icon name="arrow" width="18" height="18" />}</button>
         </form>

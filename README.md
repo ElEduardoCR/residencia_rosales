@@ -35,7 +35,9 @@ Configura las variables de `.env.example` y aplica los archivos SQL de `supabase
 
 Aplica la secuencia completa antes de cargar datos reales: las migraciones finales restringen el acceso al personal activo y hacen privados los archivos. El catálogo general opcional se carga con `supabase/seed/0002_catalogo_medicamentos.sql`.
 
-En producción, crea el registro de personal con correo y rol adecuado desde una sesión administrativa y vincúlalo a la cuenta de Supabase Auth mediante `user_id`. Para la primera cuenta, usa el panel de Supabase: crea primero un registro de personal activo con correo y rol `admin`, y después el usuario Auth con ese mismo correo. El disparador enlaza los correos autorizados; registrarse por sí solo no concede acceso.
+El inicio de sesión utiliza el primer nombre del empleado y su contraseña. No distingue mayúsculas ni tildes; los nombres completos y correos no se usan como usuario. Si dos integrantes activos tienen el mismo primer nombre, el acceso se bloquea para no entrar a una cuenta equivocada.
+
+Cada cuenta de Supabase Auth debe estar vinculada al registro de personal mediante `user_id`. El inicio de sesión resuelve esa relación solo en el servidor y verifica la contraseña con Supabase Auth; nunca devuelve el directorio de personal al formulario público. El correo de contacto del expediente es opcional e independiente del acceso. Las cuentas sin correo pueden usar un identificador interno reservado en Auth, sin enviar correos ni exponerlo en la interfaz. Crear un integrante no crea automáticamente una contraseña.
 
 El portal familiar anterior no verificaba el vínculo con el residente. Sus rutas requieren ahora acceso del personal. Fotos y firmas se sirven mediante `/api/archivos`, que verifica el acceso en cada solicitud.
 

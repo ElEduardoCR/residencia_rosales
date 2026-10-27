@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { TURNOS_PERSONAL } from "@/lib/constants";
 import { capitalizar } from "@/lib/utils";
+import { usuarioDesdeNombre } from "@/lib/usernames";
 import Icon from "@/components/Icon";
 import type { Personal } from "@/lib/types";
 
@@ -47,6 +48,8 @@ export default function PersonalCliente({ inicial }: { inicial: Personal[] }) {
     e.preventDefault();
     if (guardando || !editId) return;
     if (!form.nombre.trim()) { setError("Escribe el nombre completo."); return; }
+    const activo = editId === "nuevo" || lista.find(p => p.id === editId)?.activo;
+    if (activo && usuarioDuplicado) { setError("Ya existe un integrante activo con ese primer nombre. No se puede crear un usuario duplicado."); return; }
     setGuardando(true);
     setError(null);
     setAviso(null);
@@ -106,6 +109,8 @@ export default function PersonalCliente({ inicial }: { inicial: Personal[] }) {
     { k: "contacto_emergencia", label: "Contacto de emergencia" },
     { k: "contacto_emergencia_tel", label: "Tel. de emergencia", type: "tel" },
   ];
+  const usuarioFormulario = usuarioDesdeNombre(form.nombre);
+  const usuarioDuplicado = Boolean(usuarioFormulario) && lista.some((p) => p.id !== editId && p.activo && usuarioDesdeNombre(p.nombre) === usuarioFormulario);
   const filtrados = lista.filter((p) => normalizar(p.nombre).includes(normalizar(busqueda.trim())));
 
   return <div className="space-y-5">
@@ -124,6 +129,7 @@ export default function PersonalCliente({ inicial }: { inicial: Personal[] }) {
           <label htmlFor={`personal-${c.k}`} className="label">{c.label}</label>
           <input id={`personal-${c.k}`} name={c.k} type={c.type ?? "text"} className="input" required={c.k === "nombre"} value={form[c.k]} onChange={(e) => setForm({ ...form, [c.k]: e.target.value })} />
         </div>)}
+        <div className="sm:col-span-2 rounded-xl bg-slate-50 p-3"><p className="text-sm text-slate-600">Usuario: <span className="font-semibold text-slate-800">{usuarioFormulario || "Escribe el nombre completo"}</span></p><p className="mt-1 text-xs text-slate-500">Se usa el primer nombre, sin distinguir mayúsculas y minúsculas.</p>{usuarioDuplicado && <p role="alert" className="mt-2 text-sm text-amber-800">Hay otro integrante activo con ese primer nombre. Sus cuentas no podrán distinguirse al iniciar sesión; revisa el registro antes de guardar.</p>}</div>
         <div><label htmlFor="personal-rol" className="label">Rol en el sistema</label><select id="personal-rol" name="rol" className="input" value={form.rol} onChange={(e) => setForm({ ...form, rol: e.target.value })}><option value="enfermero">Enfermero (registra su trabajo)</option><option value="admin">Administrador (acceso total)</option></select></div>
         <div><label htmlFor="personal-turno" className="label">Turno</label><select id="personal-turno" name="turno" className="input" value={form.turno} onChange={(e) => setForm({ ...form, turno: e.target.value })}><option value="">Sin registrar</option>{TURNOS_PERSONAL.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></div>
         <div className="sm:col-span-2"><label htmlFor="personal-notas" className="label">Notas y datos del expediente</label><textarea id="personal-notas" name="notas" className="input min-h-32" value={form.notas} onChange={(e) => setForm({ ...form, notas: e.target.value })} /></div>
@@ -139,6 +145,7 @@ export default function PersonalCliente({ inicial }: { inicial: Personal[] }) {
         </div>
         {confirmarEliminar === p.id && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3"><p className="mb-3 text-sm text-red-700">¿Eliminar el registro de {p.nombre}? Esta acción no se puede deshacer.</p><div className="flex flex-wrap gap-2"><button type="button" onClick={() => eliminar(p.id)} disabled={Boolean(eliminando)} className="btn btn-danger btn-sm">{eliminando === p.id ? "Eliminando…" : "Eliminar registro"}</button><button type="button" onClick={() => setConfirmarEliminar(null)} disabled={Boolean(eliminando)} className="btn btn-secondary btn-sm">Cancelar</button></div></div>}
         <dl className="mt-4 space-y-2 break-words text-sm text-slate-600">
+          <div><dt className="inline font-medium">Usuario: </dt><dd className="inline">{usuarioDesdeNombre(p.nombre)}</dd>{!p.user_id && <span className="ml-2 text-xs text-slate-500">Cuenta sin configurar</span>}</div>
           {p.telefono && <div><dt className="inline font-medium">Teléfono: </dt><dd className="inline">{p.telefono}</dd></div>}
           {p.email && <div><dt className="inline font-medium">Correo: </dt><dd className="inline">{p.email}</dd></div>}
           {p.direccion && <div><dt className="inline font-medium">Dirección: </dt><dd className="inline">{p.direccion}</dd></div>}

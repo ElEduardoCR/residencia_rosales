@@ -15,10 +15,9 @@ const NAV: { href: string; label: string; icon: IconName; adminOnly?: boolean }[
   { href: "/personal", label: "Personal", icon: "staff", adminOnly: true },
 ];
 
-export default function Sidebar({ email, nombre, esAdmin }: { email: string; nombre: string; esAdmin: boolean }) {
+export default function Sidebar({ nombre, esAdmin, accesoLocal, usuario }: { nombre: string; esAdmin: boolean; accesoLocal: boolean; usuario: string }) {
   const pathname = usePathname();
   const dialog = useRef<HTMLDialogElement>(null);
-  const accesoLocal = email === "";
   const iniciales = nombre.split(/\s+/).slice(0, 2).map((n) => n[0]).join("").toUpperCase();
   const cerrar = () => dialog.current?.close();
 
@@ -50,7 +49,7 @@ export default function Sidebar({ email, nombre, esAdmin }: { email: string; nom
           </div>
         </div>
         {accesoLocal ? <p className="border-t border-slate-200 pt-3 text-xs leading-relaxed text-slate-500">Sin inicio de sesión · En este equipo</p> : <>
-          <div className="mb-3 truncate text-xs text-slate-500" title={email}>{email}</div>
+          <div className="mb-3 truncate text-xs text-slate-500" title={usuario}>Usuario: {usuario}</div>
           <form action="/auth/signout" method="post"><button type="submit" className="btn btn-ghost w-full justify-start border-t border-slate-200 text-xs"><Icon name="exit" width="17" height="17" />Cerrar sesión</button></form>
         </>}
       </div>

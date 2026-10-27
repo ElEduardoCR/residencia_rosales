@@ -29,7 +29,7 @@ export async function getUsuarioActual(): Promise<UsuarioActual | null> {
 
   return {
     userId: user.id,
-    email: user.email ?? "",
+    email: personal.email ?? "",
     personal: personal ?? null,
     esAdmin: personal?.rol === "admin",
     nombre: personal?.nombre ?? user.email ?? "Usuario",

@@ -6,6 +6,11 @@ import { cookies } from "next/headers";
 /** Cliente de Supabase para Server Components / Route Handlers. */
 export async function createClient() {
   if (await hasLocalAccess()) return createAdminClient();
+  return createAuthClient();
+}
+
+/** Session client; always authenticates, including when used by the login action. */
+export async function createAuthClient() {
   const cookieStore = await cookies();
 
   return createServerClient(
