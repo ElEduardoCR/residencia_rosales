@@ -1,8 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
+import { hasLocalAccess } from "@/lib/local-access-server";
+import { createAdminClient } from "./admin";
 import { cookies } from "next/headers";
 
 /** Cliente de Supabase para Server Components / Route Handlers. */
 export async function createClient() {
+  if (await hasLocalAccess()) return createAdminClient();
   const cookieStore = await cookies();
 
   return createServerClient(

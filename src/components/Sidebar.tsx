@@ -2,128 +2,69 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { useRef } from "react";
+import Icon, { type IconName } from "@/components/Icon";
 
-const NAV = [
-  { href: "/", label: "Inicio", icon: "🏠" },
-  { href: "/pacientes", label: "Pacientes", icon: "👴" },
-  { href: "/actividades", label: "Actividades", icon: "📋" },
-  { href: "/visitas", label: "Visitas y salidas", icon: "🚪" },
-  { href: "/menu", label: "Menú semanal", icon: "🍽️" },
-  { href: "/personal", label: "Personal", icon: "🩺", adminOnly: true },
+const NAV: { href: string; label: string; icon: IconName; adminOnly?: boolean }[] = [
+  { href: "/", label: "Inicio", icon: "home" },
+  { href: "/pacientes", label: "Pacientes", icon: "patients" },
+  { href: "/actividades", label: "Actividades", icon: "clipboard" },
+  { href: "/salidas", label: "Registro de salida", icon: "exit" },
+  { href: "/visitas", label: "Visitas", icon: "visits" },
+  { href: "/menu", label: "Menú semanal", icon: "menu" },
+  { href: "/personal", label: "Personal", icon: "staff", adminOnly: true },
 ];
 
-function esActivo(pathname: string, href: string) {
-  if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(href + "/");
-}
-
-export default function Sidebar({
-  email,
-  nombre,
-  esAdmin,
-}: {
-  email: string;
-  nombre: string;
-  esAdmin: boolean;
-}) {
+export default function Sidebar({ email, nombre, esAdmin }: { email: string; nombre: string; esAdmin: boolean }) {
   const pathname = usePathname();
-  const [abierto, setAbierto] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const accesoLocal = email === "";
+  const iniciales = nombre.split(/\s+/).slice(0, 2).map((n) => n[0]).join("").toUpperCase();
+  const cerrar = () => dialog.current?.close();
 
-  const Enlaces = (
-    <nav className="flex flex-col gap-1 px-3">
-      {NAV.filter((item) => esAdmin || !item.adminOnly).map((item) => {
-        const activo = esActivo(pathname, item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={() => setAbierto(false)}
-            className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
-              activo
-                ? "bg-marca-700 text-white"
-                : "text-slate-700 hover:bg-marca-50 hover:text-marca-800",
-            )}
-          >
-            <span className="text-lg leading-none">{item.icon}</span>
-            {item.label}
-          </Link>
-        );
-      })}
-    </nav>
-  );
-
-  return (
-    <>
-      {/* Barra superior móvil */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
-        <div className="flex items-center gap-2 font-semibold text-slate-800">
-          <span>🌹</span> Residencia Rosales
+  function contenido(movil = false) {
+    return <>
+      <div className="flex items-center gap-3 px-5 pb-7 pt-6">
+        <div className="brand-mark"><Icon name="heart" width="23" height="23" /></div>
+        <div className="min-w-0 leading-tight">
+          <div className="text-[11px] font-medium tracking-[.14em] text-slate-500">RESIDENCIA</div>
+          <div className="mt-0.5 text-xl font-semibold tracking-tight text-slate-900">Rosales</div>
         </div>
-        <button
-          onClick={() => setAbierto(true)}
-          className="btn btn-ghost px-2 py-1"
-          aria-label="Abrir menú"
-        >
-          ☰
-        </button>
-      </header>
-
-      {/* Overlay móvil */}
-      {abierto && (
-        <div
-          className="fixed inset-0 z-40 bg-black/40 md:hidden"
-          onClick={() => setAbierto(false)}
-        />
-      )}
-
-      {/* Barra lateral */}
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white transition-transform md:translate-x-0",
-          abierto ? "translate-x-0" : "-translate-x-full",
-        )}
-      >
-        <div className="flex items-center gap-2 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-marca-700 text-lg">
-            🌹
-          </div>
-          <div className="leading-tight">
-            <div className="font-bold text-slate-900">Residencia</div>
-            <div className="text-xs text-marca-700">Rosales</div>
-          </div>
-          <button
-            onClick={() => setAbierto(false)}
-            className="ml-auto text-slate-400 md:hidden"
-            aria-label="Cerrar menú"
-          >
-            ✕
-          </button>
+        {movil && <button onClick={cerrar} className="btn btn-ghost ml-auto px-2.5" aria-label="Cerrar menú"><Icon name="close" /></button>}
+      </div>
+      <nav aria-label="Navegación principal" className="min-h-0 flex-1 overflow-y-auto px-3">
+        <p className="eyebrow mb-3 px-3.5 text-[10px]">EL DÍA A DÍA</p>
+        <div className="flex flex-col gap-1.5">
+          {NAV.filter((item) => esAdmin || !item.adminOnly).map((item) => {
+            const activo = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(item.href + "/");
+            return <Link key={item.href} href={item.href} onClick={cerrar} aria-current={activo ? "page" : undefined} className="nav-link"><Icon name={item.icon} /><span>{item.label}</span>{activo && <span aria-hidden="true" className="ml-auto h-1.5 w-1.5 rounded-full bg-current" />}</Link>;
+          })}
         </div>
-
-        <div className="flex-1 overflow-y-auto py-2">{Enlaces}</div>
-
-        <div className="border-t border-slate-200 p-3">
-          <div className="mb-2 px-2">
-            <div className="flex items-center gap-2">
-              <span className="truncate text-sm font-medium text-slate-700" title={nombre}>
-                {nombre}
-              </span>
-              <span className={`badge ${esAdmin ? "bg-marca-100 text-marca-800" : "bg-slate-100 text-slate-600"}`}>
-                {esAdmin ? "Admin" : "Enfermero"}
-              </span>
-            </div>
-            <div className="truncate text-xs text-slate-400" title={email}>{email}</div>
+      </nav>
+      <div className="m-3 mt-8 rounded-2xl border border-slate-200 p-3">
+        <div className="mb-3 flex items-center gap-2.5">
+          <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-marca-100 text-xs font-semibold text-marca-800">{iniciales}</div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-slate-800" title={nombre}>{nombre}</div>
+            <div className="text-xs text-slate-500">{accesoLocal ? "Acceso local" : esAdmin ? "Administración" : "Enfermería"}</div>
           </div>
-          <form action="/auth/signout" method="post">
-            <button type="submit" className="btn btn-secondary w-full text-sm">
-              Cerrar sesión
-            </button>
-          </form>
         </div>
-      </aside>
-    </>
-  );
+        {accesoLocal ? <p className="border-t border-slate-200 pt-3 text-xs leading-relaxed text-slate-500">Sin inicio de sesión · En este equipo</p> : <>
+          <div className="mb-3 truncate text-xs text-slate-500" title={email}>{email}</div>
+          <form action="/auth/signout" method="post"><button type="submit" className="btn btn-ghost w-full justify-start border-t border-slate-200 text-xs"><Icon name="exit" width="17" height="17" />Cerrar sesión</button></form>
+        </>}
+      </div>
+    </>;
+  }
+
+  return <>
+    <header className="app-navigation glass sticky top-0 z-30 flex items-center justify-between px-4 py-3 md:hidden">
+      <div><Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight text-slate-900"><Icon name="heart" className="text-marca-700" />Residencia Rosales</Link>{accesoLocal && <p className="mt-1 pl-[30px] text-xs text-slate-500">Acceso local</p>}</div>
+      <button onClick={() => dialog.current?.showModal()} className="btn btn-ghost px-3" aria-label="Abrir menú"><Icon name="bars" /></button>
+    </header>
+    <aside className="app-navigation glass fixed inset-y-4 left-4 z-40 hidden w-64 flex-col rounded-[28px] md:flex">{contenido()}</aside>
+    <dialog ref={dialog} className="app-navigation mobile-navigation glass" aria-label="Menú de navegación" onClick={(e) => { if (e.target === dialog.current) cerrar(); }}>
+      <div className="flex h-full flex-col">{contenido(true)}</div>
+    </dialog>
+  </>;
 }

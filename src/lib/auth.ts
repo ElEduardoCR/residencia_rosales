@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { hasLocalAccess } from "@/lib/local-access-server";
 import type { Personal } from "./types";
 
 export interface UsuarioActual {
@@ -11,6 +12,7 @@ export interface UsuarioActual {
 
 /** Devuelve el usuario autenticado y su registro de personal (con rol). */
 export async function getUsuarioActual(): Promise<UsuarioActual | null> {
+  if (await hasLocalAccess()) return { userId: "local", email: "", nombre: "Administración local", esAdmin: true, personal: null };
   const supabase = await createClient();
   const {
     data: { user },
@@ -22,6 +24,8 @@ export async function getUsuarioActual(): Promise<UsuarioActual | null> {
     .select("*")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  if (!personal?.activo) return null;
 
   return {
     userId: user.id,

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** Sube una imagen en formato dataURL al bucket indicado y devuelve la URL pública. */
+/** Guarda una firma privada. La URL interna exige una sesión de personal activo. */
 export async function subirDataURL(
   supabase: SupabaseClient,
   bucket: string,
@@ -13,7 +13,7 @@ export async function subirDataURL(
       .from(bucket)
       .upload(path, blob, { contentType: "image/png", upsert: true });
     if (error) return null;
-    return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+    return `/api/archivos/${encodeURIComponent(bucket)}/${encodeURIComponent(path)}`;
   } catch {
     return null;
   }

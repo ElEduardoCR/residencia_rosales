@@ -40,23 +40,24 @@ export default function MedicamentoAutocomplete({
   }
 
   useEffect(() => {
-    if (texto.trim().length < 2) {
-      setResultados([]);
-      return;
-    }
+    if (texto.trim().length < 2) return;
+    const controller = new AbortController();
     const t = setTimeout(async () => {
-      setCargando(true);
       const { data } = await supabase
         .from("medicamentos_catalogo")
         .select("id, nombre, principio, forma, tipo")
         .ilike("nombre", `%${texto.trim()}%`)
         .order("nombre")
-        .limit(20);
+        .limit(20)
+        .abortSignal(controller.signal);
+      if (controller.signal.aborted) return;
       setResultados(data ?? []);
       setCargando(false);
-      setAbierto(true);
     }, 250);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      controller.abort();
+    };
   }, [texto, supabase]);
 
   useEffect(() => {
@@ -78,7 +79,15 @@ export default function MedicamentoAutocomplete({
       <input
         className="input"
         value={texto}
-        onChange={(e) => setTexto(e.target.value)}
+        onChange={(e) => {
+          const value = e.target.value;
+          const buscar = value.trim().length >= 2;
+          setTexto(value);
+          setResultados([]);
+          setCargando(buscar);
+          setAbierto(buscar);
+          setCreando(false);
+        }}
         onFocus={() => resultados.length && setAbierto(true)}
         placeholder={placeholder}
       />

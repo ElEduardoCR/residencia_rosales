@@ -18,6 +18,8 @@ export default function SignaturePad({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dibujando = useRef(false);
+  const trazoReal = useRef(false);
+  const ultimoPunto = useRef<{ x: number; y: number } | null>(null);
   const [vacio, setVacio] = useState(!value);
 
   useEffect(() => {
@@ -50,8 +52,11 @@ export default function SignaturePad({
   function iniciar(e: React.PointerEvent) {
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
     dibujando.current = true;
+    trazoReal.current = false;
     const { x, y } = coords(e);
+    ultimoPunto.current = { x, y };
     ctx.beginPath();
     ctx.moveTo(x, y);
     canvasRef.current?.setPointerCapture(e.pointerId);
@@ -62,13 +67,18 @@ export default function SignaturePad({
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     const { x, y } = coords(e);
+    const previo = ultimoPunto.current;
+    if (!previo || Math.hypot(x - previo.x, y - previo.y) < 1) return;
     ctx.lineTo(x, y);
     ctx.stroke();
+    ultimoPunto.current = { x, y };
+    trazoReal.current = true;
   }
 
   function terminar() {
     if (!dibujando.current) return;
     dibujando.current = false;
+    if (!trazoReal.current) return;
     setVacio(false);
     const url = canvasRef.current?.toDataURL("image/png") ?? null;
     onChange(url);
@@ -80,6 +90,9 @@ export default function SignaturePad({
     if (canvas && ctx) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
+    dibujando.current = false;
+    trazoReal.current = false;
+    ultimoPunto.current = null;
     setVacio(true);
     onChange(null);
   }
@@ -95,15 +108,18 @@ export default function SignaturePad({
       <div className="relative">
         <canvas
           ref={canvasRef}
+          style={{ backgroundColor: "#fff" }}
+          aria-label={`${label}: dibuja tu firma con el dedo, lápiz o mouse`}
           onPointerDown={iniciar}
           onPointerMove={mover}
           onPointerUp={terminar}
           onPointerLeave={terminar}
+          onPointerCancel={terminar}
           className="h-40 w-full touch-none rounded-lg border-2 border-dashed border-slate-300 bg-white"
         />
         {vacio && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-slate-300">
-            ✍️ Firme aquí con el dedo
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm" style={{ color: "#6c647b" }}>
+            Firme aquí con el dedo, lápiz o mouse
           </div>
         )}
       </div>

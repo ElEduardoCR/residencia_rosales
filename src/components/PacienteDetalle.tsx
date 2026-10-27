@@ -18,16 +18,18 @@ export default function PacienteDetalle({
   obligatorios,
   salidas,
   esAdmin,
+  tabInicial = "info",
 }: {
   paciente: Paciente;
   personal: PersonalMin[];
   obligatorios: MedicamentoPaciente[];
   salidas: Salida[];
   esAdmin: boolean;
+  tabInicial?: Tab;
 }) {
   const router = useRouter();
   const supabase = createClient();
-  const [tab, setTab] = useState<Tab>("info");
+  const [tab, setTab] = useState<Tab>(tabInicial);
   const edad = calcularEdad(paciente.fecha_nacimiento);
 
   async function cambiarActivo() {
@@ -139,7 +141,7 @@ function InfoTab({ paciente }: { paciente: Paciente }) {
                 <span key={a} className="badge bg-red-100 text-red-700">{a}</span>
               ))}
             </div>
-          ) : <span className="text-sm text-slate-400">Ninguna</span>}
+          ) : <span className="text-sm text-slate-400">Sin información registrada</span>}
         </div>
         <div>
           <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">Enfermedades</div>
@@ -149,7 +151,7 @@ function InfoTab({ paciente }: { paciente: Paciente }) {
                 <span key={e} className="badge bg-amber-100 text-amber-800">{e}</span>
               ))}
             </div>
-          ) : <span className="text-sm text-slate-400">Ninguna</span>}
+          ) : <span className="text-sm text-slate-400">Sin información registrada</span>}
         </div>
       </div>
 
@@ -161,7 +163,7 @@ function InfoTab({ paciente }: { paciente: Paciente }) {
 
       {paciente.notas && (
         <div className="card p-5">
-          <Campo label="Notas">{paciente.notas}</Campo>
+          <Campo label="Notas"><span className="whitespace-pre-line">{paciente.notas}</span></Campo>
         </div>
       )}
     </div>
@@ -172,7 +174,7 @@ function SalidasTab({ paciente, salidas }: { paciente: Paciente; salidas: Salida
   return (
     <div>
       <div className="mb-3 flex justify-end">
-        <Link href={`/visitas?paciente=${paciente.id}`} className="btn btn-primary btn-sm">
+        <Link href={`/salidas?paciente=${paciente.id}`} className="btn btn-primary btn-sm">
           🚪 Registrar salida
         </Link>
       </div>
@@ -181,7 +183,7 @@ function SalidasTab({ paciente, salidas }: { paciente: Paciente; salidas: Salida
       ) : (
         <div className="space-y-2">
           {salidas.map((s) => (
-            <Link key={s.id} href={`/visitas/${s.id}`} className="card flex items-center justify-between p-4 hover:border-marca-300">
+            <Link key={s.id} href={`/salidas/${s.id}`} className="card flex items-center justify-between p-4 hover:border-marca-300">
               <div>
                 <div className="font-medium text-slate-800">
                   {formatFecha(s.fecha_salida)} → {s.fecha_regreso ? formatFecha(s.fecha_regreso) : "En curso"}

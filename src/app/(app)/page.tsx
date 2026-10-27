@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getUsuarioActual } from "@/lib/auth";
+import { existenciasSinVerificar } from "@/lib/medication-verification";
 import { Stat } from "@/components/ui";
+import Icon, { type IconName } from "@/components/Icon";
 import NotificacionesToggle from "@/components/NotificacionesToggle";
 import { ahoraEnZona, fechaEnZona, horaCorta } from "@/lib/utils";
 import { ZONA_HORARIA, TOLERANCIA_MIN } from "@/lib/constants";
@@ -17,7 +19,7 @@ export default async function Inicio() {
 
   const [pacientes, inventario, salidas, personal, programadas, completadas] = await Promise.all([
     supabase.from("pacientes").select("id", { count: "exact", head: true }).eq("activo", true),
-    supabase.from("medicamentos_paciente").select("medicamento_nombre, cantidad, minimo, presentacion, paciente_id, pacientes(nombre)").eq("activo", true),
+    supabase.from("medicamentos_paciente").select("medicamento_nombre, cantidad, minimo, presentacion, notas, paciente_id, pacientes(nombre)").eq("activo", true),
     supabase.from("salidas").select("id", { count: "exact", head: true }).eq("estado", "fuera"),
     supabase.from("personal").select("id", { count: "exact", head: true }).eq("activo", true),
     supabase.from("actividades_programadas").select("*").eq("activo", true).order("hora"),
@@ -29,10 +31,12 @@ export default async function Inicio() {
     cantidad: number;
     minimo: number;
     presentacion: string | null;
+    notas: string | null;
     paciente_id: string;
     pacientes: { nombre: string } | null;
   }[];
-  const bajos = items.filter((m) => Number(m.minimo) > 0 && Number(m.cantidad) <= Number(m.minimo));
+  const sinConteo = items.filter(m => existenciasSinVerificar(m.notas));
+  const bajos = items.filter((m) => !existenciasSinVerificar(m.notas) && Number(m.minimo) > 0 && Number(m.cantidad) <= Number(m.minimo));
 
   const hechas = new Set((completadas.data ?? []).map((c) => c.actividad_id));
   const proximas = (programadas.data ?? [])
@@ -42,89 +46,44 @@ export default async function Inicio() {
       return { ...a, atrasada: minutos > h * 60 + m + TOLERANCIA_MIN };
     });
 
-  const accesos = [
-    { href: "/pacientes/nuevo", label: "Alta de paciente", icon: "➕", adminOnly: true },
-    { href: "/actividades", label: "Actividades", icon: "📋" },
-    { href: "/visitas", label: "Visitas y salidas", icon: "🚪" },
-    { href: "/menu", label: "Menú semanal", icon: "🍽️" },
-    { href: "/personal", label: "Personal", icon: "🩺", adminOnly: true },
-  ].filter((a) => esAdmin || !a.adminOnly);
+  const accesos: { href: string; label: string; description: string; icon: IconName; adminOnly?: boolean }[] = [
+    { href: "/pacientes", label: "Pacientes", description: "Expedientes y tratamientos", icon: "patients" },
+    { href: "/salidas", label: "Registro de salida", description: "Acompañantes, pertenencias y firmas", icon: "exit" },
+    { href: "/menu", label: "Menú semanal", description: "La alimentación de cada día", icon: "menu" },
+    { href: "/personal", label: "Nuestro equipo", description: "Personal y turnos", icon: "staff", adminOnly: true },
+  ];
+  const errorDatos = [pacientes, inventario, salidas, personal, programadas, completadas].some((r) => r.error);
+  const fechaLarga = new Intl.DateTimeFormat("es-MX", { weekday: "long", day: "numeric", month: "long", timeZone: ZONA_HORARIA }).format(new Date());
 
-  return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Panel general</h1>
-        <p className="mt-1 text-sm text-slate-500">Hola {usuario?.nombre}, este es el resumen de hoy</p>
-      </div>
-
-      <div className="mb-6">
-        <NotificacionesToggle />
-      </div>
-
-      {/* Próximas actividades */}
-      <div className="card mb-6 p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold text-slate-800">🔔 Próximas actividades</h2>
-          <Link href="/actividades" className="text-sm font-medium text-marca-700 hover:underline">Ver todas →</Link>
-        </div>
-        {proximas.length === 0 ? (
-          <p className="text-sm text-slate-400">No hay actividades pendientes para hoy. 🎉</p>
-        ) : (
-          <div className="space-y-2">
-            {proximas.map((a) => (
-              <div key={a.id} className="flex items-center gap-3 rounded-lg border border-slate-100 px-3 py-2">
-                <span className="font-mono text-sm font-semibold text-marca-700">{horaCorta(a.hora)}</span>
-                <span className="flex-1 text-sm text-slate-700">{a.titulo}</span>
-                {a.atrasada && <span className="badge bg-amber-100 text-amber-800">Atrasada</span>}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Pacientes activos" value={pacientes.count ?? 0} href="/pacientes" tono="marca" />
-        <Stat
-          label="Medicamentos bajo mínimo"
-          value={bajos.length}
-          tono={bajos.length > 0 ? "amber" : "emerald"}
-          hint={bajos.length > 0 ? "Requieren resurtido" : "Todo en orden"}
-        />
-        <Stat label="Pacientes fuera" value={salidas.count ?? 0} href="/visitas" tono="sky" />
-        <Stat label="Personal activo" value={personal.count ?? 0} href={esAdmin ? "/personal" : undefined} />
-      </div>
-
-      {bajos.length > 0 && (
-        <div className="card mt-6 p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="text-amber-500">⚠️</span>
-            <h2 className="font-semibold text-slate-800">Resurtir medicamentos</h2>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {bajos.map((m, idx) => (
-              <Link key={idx} href={`/pacientes/${m.paciente_id}`} className="badge bg-amber-100 text-amber-800 hover:bg-amber-200">
-                {m.medicamento_nombre}{m.pacientes?.nombre ? ` (${m.pacientes.nombre})` : ""} · {Number(m.cantidad)} {m.presentacion ?? ""}
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="mt-6">
-        <h2 className="mb-3 font-semibold text-slate-800">Accesos rápidos</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {accesos.map((a) => (
-            <Link
-              key={a.href}
-              href={a.href}
-              className="card flex items-center gap-3 p-4 transition hover:border-marca-300 hover:shadow-md"
-            >
-              <span className="text-2xl">{a.icon}</span>
-              <span className="text-sm font-medium text-slate-700">{a.label}</span>
-            </Link>
-          ))}
-        </div>
-      </div>
+  return <div className="space-y-7">
+    <div className="flex flex-wrap items-center justify-between gap-4">
+      <div><p className="eyebrow mb-2 capitalize">{fechaLarga}</p><h1 className="page-title">Un día para cuidar.</h1></div>
+      {esAdmin && <Link href="/pacientes/nuevo" className="btn btn-primary"><Icon name="plus" width="18" height="18" />Nuevo paciente</Link>}
     </div>
-  );
+
+    <section className="dashboard-greeting flex items-center justify-between gap-5 rounded-[24px] px-6 py-6 md:px-7">
+      <div><h2 className="text-lg font-semibold tracking-tight text-slate-900">Hola, {usuario?.nombre}.</h2><p className="mt-1.5 max-w-xl text-sm leading-relaxed text-slate-600">Aquí tienes el resumen de la residencia. Todo lo que necesitas para acompañar a nuestros pacientes.</p></div>
+      <div aria-hidden="true" className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-full border border-marca-200 text-marca-700 sm:flex"><Icon name="heart" width="26" height="26" /></div>
+    </section>
+
+    {errorDatos && <p role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">Algunos datos no pudieron cargarse. Actualiza la página para volver a intentarlo.</p>}
+
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+      <Stat label="Pacientes activos" value={pacientes.error ? "—" : pacientes.count ?? 0} href="/pacientes" tono="marca" icon="patients" hint="Con nosotros, cada día" />
+      <Stat label={sinConteo.length ? "Existencias por verificar" : "Por resurtir"} value={inventario.error ? "—" : sinConteo.length || bajos.length} tono={sinConteo.length || bajos.length ? "amber" : "slate"} icon="pill" href="/pacientes" hint={inventario.error ? "Sin información disponible" : sinConteo.length ? "Conteo de medicamentos pendiente" : bajos.length > 0 ? "Medicamentos bajo mínimo" : "Sin alertas de inventario"} />
+      <Stat label="Pacientes fuera" value={salidas.error ? "—" : salidas.count ?? 0} href="/salidas" icon="exit" hint="Con salida registrada" />
+      <Stat label="Personal activo" value={personal.error ? "—" : personal.count ?? 0} href={esAdmin ? "/personal" : undefined} icon="staff" hint="Nuestro equipo de cuidado" />
+    </div>
+
+    <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+      <section className="card overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-5"><div className="flex items-center gap-2.5"><Icon name="clock" className="text-marca-700" /><h2 className="section-title">La agenda de hoy</h2></div><Link href="/actividades" className="inline-flex min-h-10 items-center gap-1 text-xs font-semibold text-marca-700 hover:underline">Ver actividades<Icon name="arrow" width="15" height="15" /></Link></div>
+        {programadas.error || completadas.error ? <p className="px-6 py-10 text-sm text-slate-500">No se pudo consultar la agenda.</p> : proximas.length === 0 ? <div className="flex flex-col items-center px-6 py-12 text-center"><div className="icon-tile mb-4"><Icon name="check" width="24" height="24" /></div><h3 className="font-semibold text-slate-700">Todo al día</h3><p className="mt-1.5 max-w-xs text-sm text-slate-500">No hay actividades pendientes para hoy.</p><Link href="/actividades" className="btn btn-secondary mt-5">Consultar actividades</Link></div> : <div className="divide-y divide-slate-100 px-6">{proximas.slice(0, 6).map((a) => <div key={a.id} className="flex flex-wrap items-center gap-3 py-4"><span className="w-14 text-sm font-semibold tabular-nums text-marca-700">{horaCorta(a.hora)}</span><span className="min-w-0 flex-1 text-sm font-medium text-slate-700">{a.titulo}</span>{a.atrasada && <span className="badge bg-amber-100 text-amber-800">Atrasada</span>}</div>)}{proximas.length > 6 && <Link href="/actividades" className="block py-4 text-sm font-medium text-marca-700">Ver las {proximas.length} actividades pendientes →</Link>}</div>}
+      </section>
+      <section><h2 className="section-title mb-4 px-1">A un paso</h2><div className="space-y-3">{accesos.filter((a) => esAdmin || !a.adminOnly).map((a) => <Link key={a.href} href={a.href} className="card flex items-center gap-3.5 p-4 transition hover:border-marca-300 hover:shadow-md"><span className="icon-tile"><Icon name={a.icon} /></span><div className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-800">{a.label}</span><span className="mt-0.5 block text-xs text-slate-500">{a.description}</span></div><Icon name="arrow" width="17" height="17" className="shrink-0 text-slate-400" /></Link>)}</div></section>
+    </div>
+
+    {bajos.length > 0 && <section className="card p-6"><div className="mb-4 flex items-center gap-2.5"><Icon name="pill" className="text-amber-700" /><h2 className="section-title">Medicamentos por resurtir</h2></div><div className="flex flex-wrap gap-2">{bajos.map((m, idx) => <Link key={idx} href={`/pacientes/${m.paciente_id}`} className="badge min-h-10 bg-amber-100 text-amber-800 hover:underline">{m.medicamento_nombre}{m.pacientes?.nombre ? ` · ${m.pacientes.nombre}` : ""} · {Number(m.cantidad)} {m.presentacion ?? ""}</Link>)}</div></section>}
+    <NotificacionesToggle />
+  </div>;
 }

@@ -1,61 +1,164 @@
 @import "tailwindcss";
 
 @theme {
-  --color-marca-50: #fff1f2;
-  --color-marca-100: #ffe4e6;
-  --color-marca-200: #fecdd3;
-  --color-marca-300: #fda4af;
-  --color-marca-400: #fb7185;
-  --color-marca-500: #f43f5e;
-  --color-marca-600: #e11d48;
-  --color-marca-700: #be123c;
-  --color-marca-800: #9f1239;
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --color-marca-50: #f5f1fc;
+  --color-marca-100: #ede5fb;
+  --color-marca-200: #ddcef6;
+  --color-marca-300: #c6adee;
+  --color-marca-400: #ac87e1;
+  --color-marca-500: #9164ce;
+  --color-marca-600: #7950b4;
+  --color-marca-700: #6940a0;
+  --color-marca-800: #563186;
+  --color-marca-900: #402465;
+  --color-slate-50: #f8f7fa;
+  --color-slate-100: #efedf3;
+  --color-slate-200: #e2dee9;
+  --color-slate-300: #cbc5d5;
+  --color-slate-400: #756e84;
+  --color-slate-500: #6c647b;
+  --color-slate-600: #5c546b;
+  --color-slate-700: #484054;
+  --color-slate-800: #342d40;
+  --color-slate-900: #272132;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Segoe UI", sans-serif;
 }
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  color-scheme: light;
+  --background: #f6f4f9;
+  --foreground: #272132;
+  --surface: #ffffff;
+  --muted-surface: #f1edf7;
+  --accent: #6940a0;
+  --accent-hover: #563186;
+  --border: #e6e0ed;
+  --glass: rgba(251, 249, 255, 0.82);
+  --glass-border: rgba(255, 255, 255, 0.88);
+  --shadow: 0 5px 24px -15px rgba(53, 29, 83, 0.2);
 }
 
 body {
-  background: var(--background);
+  background: radial-gradient(ellipse at 0 0, #e8ddf6 0, transparent 46%), radial-gradient(ellipse at 100% 0, #f0e9f8 0, transparent 40%), var(--background);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea { font: inherit; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button, a { touch-action: manipulation; }
+button:not(:disabled), summary { cursor: pointer; }
+::selection { background: #ddcef6; color: #402465; }
+:focus-visible { outline: 3px solid #9164ce; outline-offset: 4px; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
+h1, h2, h3 { text-wrap: balance; }
+table { font-variant-numeric: tabular-nums; }
+textarea { resize: vertical; }
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.5rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236c647b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right .9rem center;
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-50 disabled:pointer-events-none cursor-pointer;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50 disabled:pointer-events-none;
+    transition: background-color 160ms, box-shadow 160ms, transform 160ms;
   }
-  .btn-primary {
-    @apply bg-marca-700 text-white hover:bg-marca-800;
-  }
-  .btn-secondary {
-    @apply bg-white text-slate-700 border border-slate-300 hover:bg-slate-50;
-  }
-  .btn-ghost {
-    @apply text-slate-600 hover:bg-slate-100;
-  }
-  .btn-danger {
-    @apply bg-red-50 text-red-700 border border-red-200 hover:bg-red-100;
-  }
-  .btn-sm {
-    @apply px-3 py-1.5 text-xs;
-  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 4px 12px -7px #563186; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary { background: var(--surface); color: var(--foreground); border: 1px solid var(--border); box-shadow: var(--shadow); }
+  .btn-secondary:hover { background: var(--muted-surface); }
+  .btn-ghost { @apply text-slate-600 hover:bg-slate-100; }
+  .btn-danger { @apply bg-red-50 text-red-700 border border-red-200 hover:bg-red-100; }
+  .btn-sm { @apply min-h-10 rounded-xl px-3 py-2 text-xs; }
   .input {
-    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-marca-500 focus:outline-none focus:ring-2 focus:ring-marca-200;
+    @apply w-full min-h-11 rounded-xl border px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400;
+    background: var(--surface); border-color: var(--border);
+    transition: border-color 160ms, box-shadow 160ms;
   }
-  .label {
-    @apply block text-sm font-medium text-slate-700 mb-1;
+  .input:focus { border-color: var(--accent); outline: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+  .label { @apply mb-1.5 block text-sm font-medium text-slate-700; }
+  .card { border: 1px solid var(--border); border-radius: 22px; background: var(--surface); box-shadow: var(--shadow); }
+  .badge { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700; }
+  .glass { background: var(--glass); border: 1px solid var(--glass-border); box-shadow: 0 8px 32px -16px rgba(70, 42, 103, 0.22), inset 0 1px 0 rgba(255,255,255,.55); -webkit-backdrop-filter: blur(28px) saturate(1.35); backdrop-filter: blur(28px) saturate(1.35); }
+  .brand-mark { @apply flex shrink-0 items-center justify-center rounded-2xl; width: 44px; height: 44px; background: linear-gradient(145deg, #9670c5, #6940a0); color: #fff; box-shadow: inset 0 1px 0 #cbb0ed, 0 5px 16px -7px #6940a0; }
+  .nav-link { @apply flex min-h-12 items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium text-slate-600; transition: background-color 160ms, color 160ms; }
+  .nav-link:hover { background: var(--muted-surface); color: var(--foreground); }
+  .nav-link[aria-current="page"] { background: var(--surface); color: var(--accent); box-shadow: 0 2px 9px -4px rgba(54, 28, 84, .25); font-weight: 650; }
+  .eyebrow { @apply text-xs font-semibold tracking-widest text-slate-500; }
+  .page-title { font-size: clamp(1.75rem, 3vw, 2.3rem); line-height: 1.15; letter-spacing: -.045em; font-weight: 650; color: var(--foreground); }
+  .section-title { @apply text-base font-semibold text-slate-800; letter-spacing: -.02em; }
+  .icon-tile { @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl; background: var(--muted-surface); color: var(--accent); }
+  .skip-link { @apply fixed left-4 top-4 z-[100] -translate-y-24 rounded-xl px-5 py-3 font-semibold focus:translate-y-0; color: #fff; background: var(--accent); }
+  .dashboard-greeting { background: linear-gradient(115deg, #eee5f9, #f8f5fc 76%); border: 1px solid #e2d7ee; }
+}
+
+.mobile-navigation { margin: 12px; padding: 0; width: min(320px, calc(100vw - 24px)); max-width: none; height: calc(100dvh - 24px); max-height: none; border-radius: 26px; color: var(--foreground); }
+.mobile-navigation::backdrop { background: rgba(31, 21, 46, .38); }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: #17141e; --foreground: #f0ecf6; --surface: #24202d; --muted-surface: #30283e; --border: #3a3245;
+    --accent: #b79ade; --accent-hover: #c7aeeb; --glass: rgba(35, 29, 46, .87); --glass-border: rgba(180, 154, 211, .18);
+    --shadow: 0 5px 24px -15px rgba(0,0,0,.5);
+    --color-slate-50: #201b28; --color-slate-100: #2d2637; --color-slate-200: #3b3348; --color-slate-300: #50465f;
+    --color-slate-400: #b4a8c4; --color-slate-500: #bdb1ca; --color-slate-600: #cec4d9; --color-slate-700: #dbd2e5; --color-slate-800: #e8e0f0; --color-slate-900: #f2edf8;
+    --color-marca-50: #2c2339; --color-marca-100: #392b4d; --color-marca-200: #574174; --color-marca-300: #73548f;
   }
-  .card {
-    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
-  }
-  .badge {
-    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
-  }
-  .chip {
-    @apply inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700;
-  }
+  body { background: radial-gradient(ellipse at 0 0, #30213e 0, transparent 50%), var(--background); background-attachment: fixed; }
+  .bg-white { background-color: var(--surface); }
+  select.input { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23bdb1ca' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E"); }
+  /* Signature ink is stored as dark strokes on a transparent PNG. */
+  canvas.bg-white, .registro-imprimible img.bg-white { background-color: #fff; }
+  .text-marca-700, .text-marca-800, .text-marca-600 { color: #cbb0ed; }
+  .btn-primary { background: #8454bb; color: #fff; }
+  .btn-primary:hover { background: #7950b4; }
+  .dashboard-greeting { background: linear-gradient(115deg, #352641, #27202f 76%); border-color: #4d385e; }
+  .bg-amber-50, .bg-amber-100 { background-color: #3f321d; }
+  .bg-amber-200 { background-color: #514026; }
+  .text-amber-600, .text-amber-700, .text-amber-800, .text-amber-900 { color: #f3ca7e; }
+  .bg-emerald-50, .bg-emerald-100 { background-color: #1c3830; }
+  .text-emerald-600, .text-emerald-700, .text-emerald-800, .text-emerald-900 { color: #85d3af; }
+  .bg-red-50, .bg-red-100 { background-color: #40252e; }
+  .text-red-600, .text-red-700, .text-red-800, .text-red-900 { color: #ffacb7; }
+  .bg-sky-50, .bg-sky-100, .bg-blue-50, .bg-blue-100 { background-color: #213342; }
+  .text-sky-600, .text-sky-700, .text-sky-800, .text-sky-900, .text-blue-600, .text-blue-700, .text-blue-800, .text-blue-900 { color: #a8cfea; }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .glass { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; border-color: var(--border); box-shadow: none; }
+}
+@media (prefers-contrast: more) {
+  :root { --border: #7b6d8b; }
+  .card, .input, .btn-secondary { border-width: 2px; }
+  .nav-link[aria-current="page"] { outline: 2px solid var(--accent); outline-offset: -2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  .btn:active { transform: none; }
+}
+@media (max-width: 767px) {
+  .input { font-size: 16px; }
+  .btn-sm { min-height: 44px; }
+}
+@media print {
+  body { background: #fff; color: #111; }
+  .app-navigation, .skip-link, .no-print { display: none !important; }
+  .app-main { margin: 0 !important; padding: 0 !important; }
+  .app-main > div { max-width: none; padding: 0; }
+  .card { box-shadow: none; background: #fff; }
+  .registro-imprimible { background: #fff; color: #111; }
+  .registro-imprimible * { color: #111 !important; background-color: transparent !important; box-shadow: none !important; }
+  .registro-imprimible .card { break-inside: avoid; }
 }

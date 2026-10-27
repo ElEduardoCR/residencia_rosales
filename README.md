@@ -1,79 +1,63 @@
-# 🌹 Residencia Rosales
+# Residencia Rosales
 
-Sistema de gestión interna para una residencia / casa de retiro. Construido con
-**Next.js 16**, **React 19**, **Tailwind CSS v4** y **Supabase** (base de datos,
-autenticación y almacenamiento). Listo para desplegar en **Vercel**.
+Gestión de residentes, medicamentos, actividades, personal, visitas y salidas. Next.js 16, React 19 y Supabase.
+
+## Abrir en este equipo
+
+```bash
+npm ci
+npm run dev -- --hostname 127.0.0.1 --port 3001
+```
+
+Abre http://localhost:3001. La configuración local está en `.env.local`, excluida de Git.
+
+`NEXT_PUBLIC_LOCAL_ACCESS=true` permite trabajar sin iniciar sesión **solo en desarrollo y desde localhost**. Las consultas del navegador pasan por un intermediario local; la clave privada permanece en el servidor. En una compilación de producción esta opción queda deshabilitada. Para volver al acceso con cuenta, cambia el valor a `false` y reinicia el servidor.
 
 ## Funcionalidades
 
-1. **Autenticación** con Supabase Auth (correo y contraseña).
-2. **Inventario de medicamentos** por pastilla y ml, con punto de resurtido
-   (mínimos) y catálogo de **12,800+ medicamentos** para autocompletar.
-3. **Pacientes**: foto, tipo de sangre, fecha de nacimiento, alergias y
-   enfermedades (varias), tutor y contacto, peso, talla, estatura e **IMC** automático.
-4. **Actividades por turno** (matutino / vespertino / nocturno):
-   - Evacuaciones y orina (enteros) con enfermero responsable.
-   - Alimentación: almuerzo, comida, cena, 2 colaciones y vasos de agua (235 ml c/u).
-   - Administración de medicamentos **obligatorios** y **extra** (con motivo).
-5. **Visitas y salidas**: registro de visitantes y salidas con el tutor
-   (máx. 20 días), inventario que lleva el paciente, condición física de salida
-   y regreso, y **firma con el dedo**.
-6. **Menú semanal** editable.
-7. **Personal**: nombre, turno y datos de contacto del enfermero.
+- Diseño morado, tipografía del sistema y navegación translúcida; modo oscuro y adaptación móvil.
+- Expediente de cada residente, contactos, alergias, cuidados e indicaciones documentales.
+- Medicamentos con inventario, fuente original y revisión explícita antes de programar administraciones.
+- Personal con buscador, expediente y turnos cuando estén documentados.
+- Registro de salida independiente en `/salidas`: motivo, destino, estado físico, movilidad, lesiones, pertenencias al salir/regresar, cuatro firmas y versión imprimible.
+- Visitas en `/visitas`, menú semanal y actividades.
 
----
+## Base de datos nueva
 
-## 🚀 Puesta en marcha
+Configura las variables de `.env.example` y aplica los archivos SQL de `supabase/migrations` en orden:
 
-### 1. Crear el proyecto en Supabase
-1. Entra a [supabase.com](https://supabase.com) y crea un proyecto nuevo.
-2. Ve a **Project Settings → API** y copia:
-   - `Project URL`
-   - `anon public` key
-   - `service_role` key (secreta)
-3. Ve a **Project Settings → Database → Connection string → URI** y copia la cadena.
+1. `0001_init.sql`
+2. `0003_roles_y_actividades.sql`
+3. `0004_inventario_por_paciente.sql`
+4. `0005_medicamentos_con_inventario.sql`
+5. `20261027185329_acceso_personal_activo.sql`
+6. `20261027185518_registro_salidas_validaciones.sql`
 
-### 2. Configurar las credenciales
-Copia `.env.example` a `.env.local` y completa los valores (ver `.env.local`).
+Aplica la secuencia completa antes de cargar datos reales: las migraciones finales restringen el acceso al personal activo y hacen privados los archivos. El catálogo general opcional se carga con `supabase/seed/0002_catalogo_medicamentos.sql`.
 
-### 3. Crear la base de datos
-Ejecuta en el **SQL Editor** de Supabase, en este orden:
+En producción, crea el registro de personal con correo y rol adecuado desde una sesión administrativa y vincúlalo a la cuenta de Supabase Auth mediante `user_id`. Para la primera cuenta, usa el panel de Supabase: crea primero un registro de personal activo con correo y rol `admin`, y después el usuario Auth con ese mismo correo. El disparador enlaza los correos autorizados; registrarse por sí solo no concede acceso.
 
-1. [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) — tablas, seguridad, storage y menú.
-2. [`supabase/seed/0002_catalogo_medicamentos.sql`](supabase/seed/0002_catalogo_medicamentos.sql) — catálogo de medicamentos.
+El portal familiar anterior no verificaba el vínculo con el residente. Sus rutas requieren ahora acceso del personal. Fotos y firmas se sirven mediante `/api/archivos`, que verifica el acceso en cada solicitud.
 
-> Alternativa al paso 2: en **Table Editor → `medicamentos_catalogo` → Import data from CSV**,
-> sube [`supabase/seed/medicamentos_catalogo.csv`](supabase/seed/medicamentos_catalogo.csv).
+## Importación documental privada
 
-### 4. Crear el primer usuario
-En **Authentication → Users → Add user**, crea un usuario con correo y contraseña
-(marca *Auto Confirm User*). Con ese usuario inicias sesión en la app.
+El archivo local `.private-import/normalized-records.json` contiene la transcripción conciliada de los documentos. No se incorpora al repositorio ni al sitio público. La importación mantiene identificadores estables y conserva registros ya existentes.
 
-> Para permitir el auto-registro desde la pantalla de login, desactiva
-> *Confirm email* en **Authentication → Providers → Email**.
-
-### 5. Correr localmente
 ```bash
-npm install
-npm run dev
+npm run import:records                         # Validación local, sin escritura
+npm run import:records -- --check-remote        # Comprobar coincidencias existentes
+npm run import:records -- --apply               # Insertar y verificar
 ```
-Abre http://localhost:3000
 
-### 6. Desplegar en Vercel
-1. Sube el repositorio a GitHub.
-2. En [vercel.com](https://vercel.com), importa el repo.
-3. Agrega las variables de entorno (**Settings → Environment Variables**):
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-4. Deploy.
+La actualización de octubre tiene prioridad sobre las fichas anteriores para el mismo paciente. Se conserva el texto original y las discrepancias. Las unidades ambiguas no se corrigen ni se deducen horarios. Las indicaciones importadas quedan pendientes de revisión, sin turnos de administración. Las existencias desconocidas se muestran sin verificar; deben registrarse mediante un conteo real.
 
----
+## Comprobaciones
 
-## Notas técnicas
-- Las fotos de pacientes y las firmas se guardan en **Supabase Storage**
-  (buckets `fotos-pacientes` y `firmas`, públicos por defecto).
-- La seguridad a nivel de fila (RLS) permite el acceso a cualquier usuario
-  **autenticado**. Los visitantes anónimos no tienen acceso.
-- El catálogo de medicamentos proviene del dataset abierto
-  [`sydmizar/drugs-datasets`](https://github.com/sydmizar/drugs-datasets) (Latinoamérica).
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+Las pruebas cubren conciliación e idempotencia, fechas y estados de salida, medicamentos pendientes y límites del acceso local.

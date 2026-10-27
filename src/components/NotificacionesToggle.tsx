@@ -13,27 +13,30 @@ function urlBase64ToUint8Array(base64String: string) {
   return arr;
 }
 
+async function consultarEstado(): Promise<Estado> {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    return "no-soportado";
+  }
+  if (Notification.permission === "denied") return "bloqueadas";
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = reg ? await reg.pushManager.getSubscription() : null;
+  return sub ? "activadas" : "soportado";
+}
+
 export default function NotificacionesToggle() {
   const [estado, setEstado] = useState<Estado>("desconocido");
   const [cargando, setCargando] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
-      setEstado("no-soportado");
-      return;
-    }
-    if (Notification.permission === "denied") {
-      setEstado("bloqueadas");
-      return;
-    }
-    navigator.serviceWorker
-      .getRegistration()
-      .then(async (reg) => {
-        const sub = reg ? await reg.pushManager.getSubscription() : null;
-        setEstado(sub ? "activadas" : "soportado");
+    let mounted = true;
+    consultarEstado()
+      .then((status) => {
+        if (mounted) setEstado(status);
       })
-      .catch(() => setEstado("soportado"));
+      .catch(() => {
+        if (mounted) setEstado("soportado");
+      });
+    return () => { mounted = false; };
   }, []);
 
   async function activar() {
@@ -70,7 +73,7 @@ export default function NotificacionesToggle() {
     setCargando(false);
   }
 
-  if (estado === "desconocido") return null;
+  if (estado === "desconocido" || !process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || (process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_LOCAL_ACCESS === "true")) return null;
 
   if (estado === "no-soportado") {
     return (

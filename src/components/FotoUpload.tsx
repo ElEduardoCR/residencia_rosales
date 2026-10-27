@@ -35,8 +35,7 @@ export default function FotoUpload({
       setSubiendo(false);
       return;
     }
-    const { data } = supabase.storage.from("fotos-pacientes").getPublicUrl(path);
-    onChange(data.publicUrl);
+    onChange(`/api/archivos/fotos-pacientes/${path}`);
     setSubiendo(false);
   }
 

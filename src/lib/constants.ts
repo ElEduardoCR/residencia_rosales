@@ -91,14 +91,17 @@ export const TIPOS_MEDICAMENTO = [
 
 /** Artículos estándar que el paciente puede llevarse al salir. */
 export const ITEMS_SALIDA_DEFAULT = [
-  "Lentes",
-  "Aparato auditivo",
-  "Documentos",
-  "Andador",
-  "Bastón",
-  "Ropa",
-  "Medicamentos",
-  "Placas dentales",
+  "Placa dental superior",
+  "Placa dental inferior",
+  "Lentes / anteojos",
+  "Audífono(s)",
+  "Joyería / reloj / accesorios",
+  "Cartera / dinero en efectivo",
+  "Documentos de identidad (INE, CURP, etc.)",
+  "Dispositivo médico (bastón, andador, etc.)",
+  "Ropa / calzado",
+  "Medicamentos propios",
+  "Otro",
 ];
 
 export const COMIDAS_DIA = [

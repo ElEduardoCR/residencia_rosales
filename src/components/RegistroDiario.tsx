@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { medicamentoProgramado, puedeRegistrarTurno } from "@/lib/medication-schedule";
 import { createClient } from "@/lib/supabase/client";
-import { TURNOS, COMIDAS_DIA, ML_POR_VASO } from "@/lib/constants";
-import { hoyISO, capitalizar } from "@/lib/utils";
+import { TURNOS, COMIDAS_DIA, ML_POR_VASO, ZONA_HORARIA } from "@/lib/constants";
+import { fechaEnZona, capitalizar } from "@/lib/utils";
 import type {
   Turno,
   RegistroTurno,
@@ -14,17 +16,20 @@ import type {
 
 type PersonalMin = { id: string; nombre: string };
 
-export default function RegistroDiario({
-  pacienteId,
-  personal,
-  obligatorios,
-}: {
-  pacienteId: string;
-  personal: PersonalMin[];
-  obligatorios: MedicamentoPaciente[];
-}) {
-  const supabase = createClient();
-  const [fecha, setFecha] = useState(hoyISO());
+type RegistroProps = { pacienteId: string; personal: PersonalMin[]; obligatorios: MedicamentoPaciente[] };
+
+export default function RegistroDiario(props: RegistroProps) {
+  const [fecha, setFecha] = useState(fechaEnZona(ZONA_HORARIA));
+  return <RegistroDelDia key={`${props.pacienteId}:${fecha}`} {...props} fecha={fecha} setFecha={setFecha} />;
+}
+
+function RegistroDelDia({ pacienteId, personal, obligatorios, fecha, setFecha }: RegistroProps & { fecha: string; setFecha: (value: string) => void }) {
+  const [supabase] = useState(createClient);
+  const [cargando, setCargando] = useState(true);
+  const [falloCarga, setFalloCarga] = useState(false);
+  const [error, setError] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const operacion = useRef(false);
   const [enfermeroDefault, setEnfermeroDefault] = useState<string>("");
 
   const [turnos, setTurnos] = useState<Record<Turno, RegistroTurno | null>>({
@@ -35,31 +40,48 @@ export default function RegistroDiario({
   const [alim, setAlim] = useState<RegistroAlimentacion | null>(null);
   const [admins, setAdmins] = useState<AdministracionMedicamento[]>([]);
 
-  const cargar = useCallback(async () => {
-    const [rt, ra, am] = await Promise.all([
-      supabase.from("registros_turno").select("*").eq("paciente_id", pacienteId).eq("fecha", fecha),
-      supabase.from("registros_alimentacion").select("*").eq("paciente_id", pacienteId).eq("fecha", fecha).maybeSingle(),
-      supabase.from("administracion_medicamentos").select("*").eq("paciente_id", pacienteId).eq("fecha", fecha),
-    ]);
-    const map: Record<Turno, RegistroTurno | null> = { matutino: null, vespertino: null, nocturno: null };
-    (rt.data ?? []).forEach((r) => (map[r.turno as Turno] = r));
-    setTurnos(map);
-    setAlim(ra.data ?? null);
-    setAdmins(am.data ?? []);
+  useEffect(() => {
+    let vigente = true;
+    const abort = new AbortController();
+    Promise.all([
+      supabase.from("registros_turno").select("*").eq("paciente_id", pacienteId).eq("fecha", fecha).abortSignal(abort.signal),
+      supabase.from("registros_alimentacion").select("*").eq("paciente_id", pacienteId).eq("fecha", fecha).abortSignal(abort.signal).maybeSingle(),
+      supabase.from("administracion_medicamentos").select("*").eq("paciente_id", pacienteId).eq("fecha", fecha).abortSignal(abort.signal),
+    ]).then(([rt, ra, am]) => {
+      if (!vigente) return;
+      if (rt.error || ra.error || am.error) {
+        setFalloCarga(true);
+        setError("No se pudo cargar el registro completo. Actualiza la página antes de registrar nuevas actividades.");
+      } else {
+        const map: Record<Turno, RegistroTurno | null> = { matutino: null, vespertino: null, nocturno: null };
+        (rt.data ?? []).forEach((r) => (map[r.turno as Turno] = r));
+        setTurnos(map); setAlim(ra.data ?? null); setAdmins(am.data ?? []);
+      }
+      setCargando(false);
+    }, () => {
+      if (!vigente) return;
+      setFalloCarga(true); setCargando(false); setError("No se pudo cargar el registro. Revisa tu conexión y actualiza la página.");
+    });
+    return () => { vigente = false; abort.abort(); };
   }, [supabase, pacienteId, fecha]);
 
-  useEffect(() => {
-    cargar();
-  }, [cargar]);
+  async function registrar(accion: () => Promise<void>) {
+    if (operacion.current || cargando || falloCarga) return;
+    operacion.current = true; setGuardando(true); setError("");
+    try { await accion(); }
+    catch (err) { setError(err instanceof Error ? err.message : "No se pudo guardar el cambio. Intenta nuevamente."); }
+    finally { operacion.current = false; setGuardando(false); }
+  }
 
   function cambiarDia(delta: number) {
-    const d = new Date(fecha);
-    d.setDate(d.getDate() + delta);
+    const d = new Date(`${fecha}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + delta);
     setFecha(d.toISOString().slice(0, 10));
   }
 
   // --- Evacuaciones / orina por turno ---
   async function guardarTurno(turno: Turno, campos: Partial<RegistroTurno>) {
+    await registrar(async () => {
     const actual = turnos[turno];
     const payload = {
       paciente_id: pacienteId,
@@ -70,16 +92,19 @@ export default function RegistroDiario({
       enfermero_id: actual?.enfermero_id ?? (enfermeroDefault || null),
       ...campos,
     };
-    const { data } = await supabase
+    const { data, error: fallo } = await supabase
       .from("registros_turno")
       .upsert(payload, { onConflict: "paciente_id,fecha,turno" })
       .select()
       .single();
-    if (data) setTurnos((prev) => ({ ...prev, [turno]: data }));
+    if (fallo || !data) throw new Error("No se pudo guardar el registro del turno.");
+    setTurnos((prev) => ({ ...prev, [turno]: data }));
+    });
   }
 
   // --- Alimentación ---
   async function guardarAlim(campos: Partial<RegistroAlimentacion>) {
+    await registrar(async () => {
     const payload = {
       paciente_id: pacienteId,
       fecha,
@@ -92,12 +117,14 @@ export default function RegistroDiario({
       enfermero_id: alim?.enfermero_id ?? (enfermeroDefault || null),
       ...campos,
     };
-    const { data } = await supabase
+    const { data, error: fallo } = await supabase
       .from("registros_alimentacion")
       .upsert(payload, { onConflict: "paciente_id,fecha" })
       .select()
       .single();
-    if (data) setAlim(data);
+    if (fallo || !data) throw new Error("No se pudo guardar la alimentación.");
+    setAlim(data);
+    });
   }
 
   // --- Administración obligatoria (toggle por turno) ---
@@ -108,12 +135,15 @@ export default function RegistroDiario({
   }
 
   async function toggleObligatorio(med: MedicamentoPaciente, turno: Turno) {
+    if (!puedeRegistrarTurno(med, turno)) return setError("La indicación debe revisarse y tener un turno programado antes de registrar su administración.");
+    await registrar(async () => {
     const existente = adminDe(med.medicamento_nombre, turno, "obligatorio");
     if (existente) {
-      await supabase.from("administracion_medicamentos").delete().eq("id", existente.id);
+      const { data: borradas, error: fallo } = await supabase.from("administracion_medicamentos").delete().eq("id", existente.id).select("id");
+      if (fallo || !borradas?.length) throw new Error("No se pudo quitar la administración registrada.");
       setAdmins((prev) => prev.filter((a) => a.id !== existente.id));
     } else {
-      const { data } = await supabase
+      const { data, error: fallo } = await supabase
         .from("administracion_medicamentos")
         .insert({
           paciente_id: pacienteId,
@@ -127,16 +157,19 @@ export default function RegistroDiario({
         })
         .select()
         .single();
-      if (data) setAdmins((prev) => [...prev, data]);
+      if (fallo || !data) throw new Error("No se pudo guardar la administración del medicamento.");
+      setAdmins((prev) => [...prev, data]);
     }
+    });
   }
 
   // --- Administración extra ---
   const [extra, setExtra] = useState({ nombre: "", dosis: "", motivo: "", turno: "matutino" as Turno });
   async function agregarExtra(e: React.FormEvent) {
     e.preventDefault();
-    if (!extra.nombre.trim()) return;
-    const { data } = await supabase
+    if (!extra.nombre.trim() || !extra.motivo.trim()) return setError("Indica el medicamento y el motivo de la administración extra.");
+    await registrar(async () => {
+    const { data, error: fallo } = await supabase
       .from("administracion_medicamentos")
       .insert({
         paciente_id: pacienteId,
@@ -150,19 +183,26 @@ export default function RegistroDiario({
       })
       .select()
       .single();
+    if (fallo || !data) throw new Error("No se pudo guardar la administración extra.");
     if (data) {
       setAdmins((prev) => [...prev, data]);
       setExtra({ nombre: "", dosis: "", motivo: "", turno: "matutino" });
     }
+    });
   }
 
   async function borrarAdmin(id: string) {
-    await supabase.from("administracion_medicamentos").delete().eq("id", id);
-    setAdmins((prev) => prev.filter((a) => a.id !== id));
+    await registrar(async () => {
+      const { data: borradas, error: fallo } = await supabase.from("administracion_medicamentos").delete().eq("id", id).select("id");
+      if (fallo || !borradas?.length) throw new Error("No se pudo quitar la administración registrada.");
+      setAdmins((prev) => prev.filter((a) => a.id !== id));
+    });
   }
 
   const extras = admins.filter((a) => a.tipo === "extra");
   const vasos = alim?.vasos_agua ?? 0;
+  const programados = obligatorios.filter(medicamentoProgramado);
+  const pendientes = obligatorios.filter((med) => !medicamentoProgramado(med));
 
   return (
     <div className="space-y-5">
@@ -172,7 +212,7 @@ export default function RegistroDiario({
           <label className="label">Fecha</label>
           <div className="flex items-center gap-1">
             <button onClick={() => cambiarDia(-1)} className="btn btn-secondary btn-sm">←</button>
-            <input type="date" className="input w-auto" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+            <input type="date" className="input w-auto" value={fecha} onChange={(e) => { if (e.target.value) setFecha(e.target.value); }} />
             <button onClick={() => cambiarDia(1)} className="btn btn-secondary btn-sm">→</button>
           </div>
         </div>
@@ -187,6 +227,9 @@ export default function RegistroDiario({
         </div>
       </div>
 
+      {cargando && <p role="status" className="text-sm text-slate-500">Cargando registro del día…</p>}
+      {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</p>}
+      <fieldset disabled={cargando || falloCarga || guardando} className="space-y-5 disabled:opacity-70">
       {/* Evacuaciones y orina por turno */}
       <div className="card p-5">
         <h3 className="mb-3 font-semibold text-slate-800">Evacuaciones y orina</h3>
@@ -258,14 +301,15 @@ export default function RegistroDiario({
 
       {/* Medicamentos obligatorios */}
       <div className="card p-5">
-        <h3 className="mb-1 font-semibold text-slate-800">Medicamentos obligatorios</h3>
+        <h3 className="mb-1 font-semibold text-slate-800">Medicamentos programados</h3>
         <p className="mb-3 text-xs text-slate-500">Marca el turno en que se administró cada medicamento.</p>
-        {obligatorios.length === 0 ? (
-          <p className="text-sm text-slate-400">Este paciente no tiene medicamentos obligatorios registrados.</p>
+        {pendientes.length > 0 && <div className="mb-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-800"><p>{pendientes.length} medicamento(s) sin programación o pendientes de revisión. No se habilitan como administración programada.</p><Link href={`/pacientes/${pacienteId}?tab=medicamentos`} className="mt-2 inline-block font-medium underline">Revisar medicamentos e indicaciones</Link></div>}
+        {programados.length === 0 ? (
+          <p className="text-sm text-slate-400">No hay medicamentos revisados con turnos programados.</p>
         ) : (
           <div className="space-y-2">
-            {obligatorios.map((med) => {
-              const turnosMed = med.turnos.length ? (med.turnos as Turno[]) : TURNOS.map((t) => t.value);
+            {programados.map((med) => {
+              const turnosMed = med.turnos;
               return (
                 <div key={med.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 p-3">
                   <div>
@@ -332,6 +376,7 @@ export default function RegistroDiario({
           </div>
         )}
       </div>
+      </fieldset>
     </div>
   );
 }

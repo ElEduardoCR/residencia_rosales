@@ -1,181 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { formatFecha, hoyISO } from "@/lib/utils";
-import { PARENTESCOS } from "@/lib/constants";
-import type { Salida, Visita } from "@/lib/types";
-import SalidaForm from "./SalidaForm";
+import { formatFecha, fechaEnZona } from "@/lib/utils";
+import { PARENTESCOS, ZONA_HORARIA } from "@/lib/constants";
+import type { Visita } from "@/lib/types";
 
-type PacienteMin = { id: string; nombre: string };
-type SalidaConPaciente = Salida & { pacientes?: { nombre: string } | null };
 type VisitaConPaciente = Visita & { pacientes?: { nombre: string } | null };
-
-export default function VisitasCliente({
-  salidas,
-  visitas,
-  pacientes,
-  personal,
-  pacienteInicial = "",
-}: {
-  salidas: SalidaConPaciente[];
-  visitas: VisitaConPaciente[];
-  pacientes: PacienteMin[];
-  personal: { id: string; nombre: string }[];
-  pacienteInicial?: string;
-}) {
+export default function VisitasCliente({ visitas, pacientes }: { visitas: VisitaConPaciente[]; pacientes: { id: string; nombre: string }[] }) {
   const supabase = createClient();
-  const [tab, setTab] = useState<"salidas" | "visitas">("salidas");
-  const [mostrarSalida, setMostrarSalida] = useState(!!pacienteInicial);
-  const [listaVisitas, setListaVisitas] = useState<VisitaConPaciente[]>(visitas);
+  const enviando = useRef(false);
+  const [lista, setLista] = useState(visitas);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [mensaje, setMensaje] = useState("");
+  const vacio = () => ({ visitante_nombre: "", parentesco: "", paciente_id: "", fecha: fechaEnZona(ZONA_HORARIA), hora_entrada: "", motivo: "" });
+  const [v, setV] = useState(vacio);
 
-  // alta de visita
-  const [v, setV] = useState({
-    visitante_nombre: "",
-    parentesco: "",
-    paciente_id: "",
-    fecha: hoyISO(),
-    hora_entrada: "",
-    motivo: "",
-  });
-
-  async function agregarVisita(e: React.FormEvent) {
-    e.preventDefault();
-    if (!v.visitante_nombre.trim()) return;
-    const { data } = await supabase
-      .from("visitas")
-      .insert({
-        visitante_nombre: v.visitante_nombre.trim(),
-        parentesco: v.parentesco || null,
-        paciente_id: v.paciente_id || null,
-        fecha: v.fecha,
-        hora_entrada: v.hora_entrada || null,
-        motivo: v.motivo || null,
-      })
-      .select("*, pacientes(nombre)")
-      .single();
-    if (data) {
-      setListaVisitas((prev) => [data, ...prev]);
-      setV({ visitante_nombre: "", parentesco: "", paciente_id: "", fecha: hoyISO(), hora_entrada: "", motivo: "" });
-    }
+  async function agregarVisita(event: React.FormEvent) {
+    event.preventDefault();
+    if (enviando.current) return;
+    if (!v.visitante_nombre.trim()) return setError("Indica el nombre del visitante.");
+    enviando.current = true; setGuardando(true); setError(null); setMensaje("");
+    try {
+      const { data, error: guardarError } = await supabase.from("visitas").insert({ visitante_nombre: v.visitante_nombre.trim(), parentesco: v.parentesco || null, paciente_id: v.paciente_id || null, fecha: v.fecha, hora_entrada: v.hora_entrada || null, motivo: v.motivo.trim() || null }).select("*, pacientes(nombre)").single();
+      if (guardarError || !data) throw new Error("No se pudo guardar la visita. Revisa tu conexión e intenta nuevamente.");
+      setLista((prev) => [data, ...prev]); setV(vacio()); setMensaje("Visita registrada.");
+    } catch (err) { setError(err instanceof Error ? err.message : "No se pudo guardar la visita."); }
+    finally { enviando.current = false; setGuardando(false); }
   }
 
-  return (
-    <div>
-      <div className="mb-5 flex flex-wrap gap-1 border-b border-slate-200">
-        {(["salidas", "visitas"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium capitalize transition ${
-              tab === t ? "border-marca-700 text-marca-700" : "border-transparent text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            {t === "salidas" ? "Salidas" : "Registro de visitas"}
-          </button>
-        ))}
-      </div>
-
-      {tab === "salidas" && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <button onClick={() => setMostrarSalida((x) => !x)} className="btn btn-primary">
-              {mostrarSalida ? "Cerrar formulario" : "🚪 Nueva salida"}
-            </button>
-          </div>
-
-          {mostrarSalida && (
-            <SalidaForm
-              pacientes={pacientes}
-              personal={personal}
-              pacienteInicial={pacienteInicial}
-              onCreada={() => setMostrarSalida(false)}
-            />
-          )}
-
-          {salidas.length === 0 ? (
-            <p className="text-sm text-slate-400">Sin salidas registradas.</p>
-          ) : (
-            <div className="space-y-2">
-              {salidas.map((s) => (
-                <Link key={s.id} href={`/visitas/${s.id}`} className="card flex flex-wrap items-center justify-between gap-2 p-4 hover:border-marca-300">
-                  <div>
-                    <div className="font-medium text-slate-800">{s.pacientes?.nombre ?? "Paciente"}</div>
-                    <div className="text-xs text-slate-500">
-                      {formatFecha(s.fecha_salida)} → {s.fecha_regreso ? formatFecha(s.fecha_regreso) : "En curso"} · Lo lleva: {s.quien_lo_lleva}
-                    </div>
-                  </div>
-                  <span className={`badge ${s.estado === "fuera" ? "bg-sky-100 text-sky-700" : "bg-emerald-100 text-emerald-700"}`}>
-                    {s.estado === "fuera" ? "Fuera" : "Regresado"}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === "visitas" && (
-        <div className="space-y-4">
-          <form onSubmit={agregarVisita} className="card grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3">
-            <div>
-              <label className="label">Nombre del visitante *</label>
-              <input className="input" required value={v.visitante_nombre} onChange={(e) => setV({ ...v, visitante_nombre: e.target.value })} />
-            </div>
-            <div>
-              <label className="label">Parentesco</label>
-              <select className="input" value={v.parentesco} onChange={(e) => setV({ ...v, parentesco: e.target.value })}>
-                <option value="">—</option>
-                {PARENTESCOS.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label">Paciente que visita</label>
-              <select className="input" value={v.paciente_id} onChange={(e) => setV({ ...v, paciente_id: e.target.value })}>
-                <option value="">—</option>
-                {pacientes.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label">Fecha</label>
-              <input type="date" className="input" value={v.fecha} onChange={(e) => setV({ ...v, fecha: e.target.value })} />
-            </div>
-            <div>
-              <label className="label">Hora de entrada</label>
-              <input type="time" className="input" value={v.hora_entrada} onChange={(e) => setV({ ...v, hora_entrada: e.target.value })} />
-            </div>
-            <div>
-              <label className="label">Motivo</label>
-              <input className="input" value={v.motivo} onChange={(e) => setV({ ...v, motivo: e.target.value })} />
-            </div>
-            <div className="sm:col-span-2 lg:col-span-3">
-              <button type="submit" className="btn btn-primary">Registrar visita</button>
-            </div>
-          </form>
-
-          {listaVisitas.length === 0 ? (
-            <p className="text-sm text-slate-400">Sin visitas registradas.</p>
-          ) : (
-            <div className="space-y-2">
-              {listaVisitas.map((vi) => (
-                <div key={vi.id} className="card flex flex-wrap items-center justify-between gap-2 p-4">
-                  <div>
-                    <span className="font-medium text-slate-800">{vi.visitante_nombre}</span>
-                    {vi.parentesco && <span className="text-sm text-slate-500"> · {vi.parentesco}</span>}
-                    <div className="text-xs text-slate-500">
-                      {formatFecha(vi.fecha)}
-                      {vi.hora_entrada && ` · ${vi.hora_entrada}`}
-                      {vi.pacientes?.nombre && ` · visita a ${vi.pacientes.nombre}`}
-                      {vi.motivo && ` · ${vi.motivo}`}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  return <div className="space-y-5">
+    <div className="flex justify-end"><Link href="/salidas" className="btn btn-secondary">Abrir registro de salida →</Link></div>
+    <form onSubmit={agregarVisita} className="card p-5 sm:p-6"><h2 className="mb-4 text-lg font-semibold text-slate-900">Registrar visita</h2><fieldset disabled={guardando} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <label><span className="label">Nombre del visitante *</span><input className="input" required value={v.visitante_nombre} onChange={(e) => setV({ ...v, visitante_nombre: e.target.value })} /></label>
+      <label><span className="label">Residente</span><select className="input" value={v.paciente_id} onChange={(e) => setV({ ...v, paciente_id: e.target.value })}><option value="">Visita general</option>{pacientes.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}</select></label>
+      <label><span className="label">Parentesco</span><select className="input" value={v.parentesco} onChange={(e) => setV({ ...v, parentesco: e.target.value })}><option value="">Selecciona</option>{PARENTESCOS.map((p) => <option key={p}>{p}</option>)}</select></label>
+      <label><span className="label">Fecha *</span><input type="date" className="input" required value={v.fecha} onChange={(e) => setV({ ...v, fecha: e.target.value })} /></label>
+      <label><span className="label">Hora de entrada</span><input type="time" className="input" value={v.hora_entrada} onChange={(e) => setV({ ...v, hora_entrada: e.target.value })} /></label>
+      <label><span className="label">Motivo</span><input className="input" value={v.motivo} onChange={(e) => setV({ ...v, motivo: e.target.value })} /></label>
+    </fieldset>{error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}{mensaje && <p role="status" className="mt-4 text-sm text-emerald-700">{mensaje}</p>}<button type="submit" disabled={guardando} className="btn btn-primary mt-5">{guardando ? "Guardando…" : "Registrar visita"}</button></form>
+    <section aria-label="Historial de visitas" className="space-y-3"><h2 className="text-lg font-semibold text-slate-900">Últimas visitas</h2>{!lista.length ? <div className="card p-8 text-center text-sm text-slate-500">Aún no hay visitas registradas.</div> : lista.map((visita) => <div key={visita.id} className="card flex flex-wrap justify-between gap-3 p-5"><div><p className="font-medium text-slate-800">{visita.visitante_nombre}</p><p className="mt-1 text-sm text-slate-500">{visita.pacientes?.nombre ?? "Visita general"}{visita.parentesco ? ` · ${visita.parentesco}` : ""}</p>{visita.motivo && <p className="mt-1 text-sm text-slate-600">{visita.motivo}</p>}</div><p className="text-sm text-slate-500">{formatFecha(visita.fecha)} · {visita.hora_entrada?.slice(0, 5) || "Sin hora"}</p></div>)}</section>
+  </div>;
 }
