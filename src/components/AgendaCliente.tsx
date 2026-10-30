@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { crearTareaAgenda, realizarTareaAgenda, desactivarTareaAgenda } from "@/app/(app)/agenda/actions";
+import { crearTareaAgenda, desactivarTareaAgenda } from "@/app/(app)/agenda/actions";
 import { TIPOS_AGENDA, fechaHoraAgenda, minutosAgenda, tareaOcurreEnFecha, estadoTareaAgenda, type AgendaPersona, type AgendaMedicamento, type AgendaTarea, type AgendaRealizacion, type TipoAgenda } from "@/lib/agenda";
 import { indicacionSinRevisar } from "@/lib/medication-verification";
 import { DIAS_NUM, ZONA_HORARIA } from "@/lib/constants";
@@ -64,7 +64,7 @@ function Dialogo({ titulo, onClose, children, ocupado = false }: { titulo: strin
   </dialog>;
 }
 
-export default function AgendaCliente({ pacientes, personal, tareas, realizaciones, medicamentos, fecha, hoy, ahora, esAdmin, miPersonalId, errorCarga }: Props) {
+export default function AgendaCliente({ pacientes, personal, tareas, realizaciones, medicamentos, fecha, hoy, ahora, esAdmin, errorCarga }: Props) {
   const router = useRouter();
   const [navegando, navegar] = useTransition();
   const [ahoraISO, setAhoraISO] = useState(ahora);
@@ -72,12 +72,10 @@ export default function AgendaCliente({ pacientes, personal, tareas, realizacion
   const [tipoFiltro, setTipoFiltro] = useState("");
   const [seleccion, setSeleccion] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
-  const [observaciones, setObservaciones] = useState("");
   const [guardando, guardarTransicion] = useTransition();
   const [confirmarArchivo, setConfirmarArchivo] = useState(false);
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState("");
-  const [realizadasLocal, setRealizadasLocal] = useState<AgendaRealizacion[]>([]);
   const [tareasLocal, setTareasLocal] = useState<AgendaTarea[]>([]);
   const [archivadasLocal, setArchivadasLocal] = useState<{ id: string; fecha: string }[]>([]);
   const scroll = useRef<HTMLDivElement>(null);
@@ -112,12 +110,10 @@ export default function AgendaCliente({ pacientes, personal, tareas, realizacion
   }, [tareas, tareasLocal, archivadasLocal]);
   const hechas = useMemo(() => {
     const mapa = new Map(realizaciones.map(r => [r.tarea_id, r]));
-    realizadasLocal.filter(r => r.fecha === fecha).forEach(r => mapa.set(r.tarea_id, r));
     return mapa;
-  }, [realizaciones, realizadasLocal, fecha]);
+  }, [realizaciones]);
   const nombresPersonal = new Map(personal.map(p => [p.id, p.nombre]));
   const nombresPacientes = new Map(pacientes.map(p => [p.id, p.nombre]));
-  const miNombre = miPersonalId ? nombresPersonal.get(miPersonalId) : null;
   const tareasDelDia = todasTareas.filter(t => tareaOcurreEnFecha(t, fecha) || hechas.has(t.id));
   const tareasVisibles = tareasDelDia.filter(t => (!pacienteFiltro || t.paciente_id === pacienteFiltro) && (!tipoFiltro || t.tipo === tipoFiltro));
   const pacientesActivos = pacientes.filter(p => p.activo !== false);
@@ -128,8 +124,8 @@ export default function AgendaCliente({ pacientes, personal, tareas, realizacion
   const seleccionada = todasTareas.find(t => t.id === seleccion);
   const registro = seleccionada ? hechas.get(seleccionada.id) : undefined;
   const medSeleccionada = seleccionada?.medicamento_id ? medicamentos.find(m => m.id === seleccionada.medicamento_id) : undefined;
-  const medNoDisponible = seleccionada?.tipo === "medicamento" && (!medSeleccionada || !medSeleccionada.activo || indicacionSinRevisar(medSeleccionada.notas));
-  const medsPendientes = medicamentos.filter(m => m.activo && indicacionSinRevisar(m.notas)).length;
+  const medNoDisponible = seleccionada?.tipo === "medicamento" && (!medSeleccionada || !medSeleccionada.activo || !medSeleccionada.dosis?.trim() || indicacionSinRevisar(medSeleccionada.notas));
+  const medsPendientes = medicamentos.filter(m => m.activo && (!m.dosis?.trim() || indicacionSinRevisar(m.notas))).length;
   const porcentaje = tareasSeguimiento.length ? Math.round(completadas / tareasSeguimiento.length * 100) : 0;
 
   function centrar(minutos: number) {
@@ -157,20 +153,7 @@ export default function AgendaCliente({ pacientes, personal, tareas, realizacion
     setSeleccion(null); setCreando(false); setError("");
     navegar(() => router.push(`/agenda?fecha=${encodeURIComponent(value)}`, { scroll: false }));
   }
-  function abrirTarea(id: string) { setSeleccion(id); setObservaciones(""); setError(""); setConfirmarArchivo(false); }
-  function completar() {
-    if (!seleccionada || guardando) return;
-    setError("");
-    guardarTransicion(async () => {
-      try {
-        const r = await realizarTareaAgenda({ tareaId: seleccionada.id, fecha, observaciones });
-        if (!r.ok || !r.realizacion) { setError(r.error || "No se pudo guardar. Intenta de nuevo."); return; }
-        setRealizadasLocal(prev => [...prev.filter(x => x.tarea_id !== r.realizacion!.tarea_id), r.realizacion!]);
-        setAviso(r.yaRegistrada ? "Esta tarea ya había sido registrada. Se conserva el registro original." : "Tarea realizada. La hora y tu nombre quedaron registrados.");
-        router.refresh();
-      } catch { setError("No se pudo conectar. Tus cambios no se han guardado; intenta de nuevo."); }
-    });
-  }
+  function abrirTarea(id: string) { setSeleccion(id); setError(""); setConfirmarArchivo(false); }
   function archivar() {
     if (!seleccionada || guardando) return;
     setError("");
@@ -242,7 +225,7 @@ export default function AgendaCliente({ pacientes, personal, tareas, realizacion
           {esHoy && pacientesVisibles.length > 0 && <div className={styles.nowLine} aria-hidden="true" style={{ left: `calc(var(--nombre-px) + ${reloj.minutos / 60 * HORA_PX}px)` }} />}
         </div>
       </div>
-      <div className={styles.boardFooter}><span>Desliza para recorrer las 24 horas. Selecciona un cuidado para registrar su realización.</span><div><span><i className={styles.pendingDot} />Pendiente</span><span><i className={styles.overdueDot} />Hora pasada</span><span><i className={styles.doneDot} />Realizada</span></div></div>
+      <div className={styles.boardFooter}><span>Desliza para recorrer las 24 horas. Selecciona un cuidado para ver su detalle. Registra su realización en Mi turno.</span><div><span><i className={styles.pendingDot} />Pendiente</span><span><i className={styles.overdueDot} />Hora pasada</span><span><i className={styles.doneDot} />Realizada</span></div></div>
     </section>
     {!errorCarga && tareasVisibles.length === 0 && <div className={styles.empty}><span className="icon-tile"><Icon name="calendar" /></span><div><h2>{tareasDelDia.length ? "No hay cuidados con estos filtros" : "El día está listo para organizarse"}</h2><p>{tareasDelDia.length ? "Prueba con otro paciente o tipo de cuidado." : esAdmin ? "Programa medicamentos revisados, comidas, terapia, baño o visitas a la hora que corresponda." : "La administración puede programar los cuidados de cada paciente."}</p></div>{esAdmin && !tareasDelDia.length && <button className="btn btn-secondary" disabled={pacientesActivos.length === 0} onClick={() => setCreando(true)}>Programar cuidado</button>}</div>}
     {medsPendientes > 0 && <aside className={styles.medNote}><Icon name="pill" /><p><strong>{medsPendientes} {medsPendientes === 1 ? "medicamento pendiente" : "medicamentos pendientes"} de revisión.</strong> Confirma la indicación en el expediente antes de asignar una hora en la agenda.</p><Link href="/pacientes" className="btn btn-ghost btn-sm">Ver expedientes <Icon name="arrow" width="16" height="16" /></Link></aside>}
@@ -254,14 +237,12 @@ export default function AgendaCliente({ pacientes, personal, tareas, realizacion
         <p className={styles.detailPatient}>{nombresPacientes.get(seleccionada.paciente_id)}<span>{fechaBonita(fecha)}</span></p>
         {seleccionada.descripcion && <p className={styles.description}>{seleccionada.descripcion}</p>}
         {medSeleccionada && <div className={styles.detailPanel}><strong>{medSeleccionada.medicamento_nombre}</strong><p>Dosis actual del expediente: {medSeleccionada.dosis || "Sin especificar"}</p><Link href={`/pacientes/${seleccionada.paciente_id}`}>Ver indicación en el expediente →</Link></div>}
-        {registro ? <div className={styles.completedPanel}><Icon name="check" /><div><strong>Realizada por {nombresPersonal.get(registro.personal_id) || "Personal registrado"}</strong><p>Registrada a las {horaRegistro(registro.realizada_at)} · {fechaBonita(fechaHoraAgenda(new Date(registro.realizada_at)).fecha)}</p>{registro.observaciones && <p className={styles.description}>{registro.observaciones}</p>}</div></div> : <>
+        {registro ? <div className={styles.completedPanel}><Icon name="check" /><div><strong>Realizada por {nombresPersonal.get(registro.personal_id) || "Personal registrado"}</strong><p>Registrada a las {horaRegistro(registro.realizada_at)} · {fechaBonita(fechaHoraAgenda(new Date(registro.realizada_at)).fecha)}</p>{registro.observaciones && <p className={styles.description}>{registro.observaciones}</p>}{registro.corregida && <p>Registro corregido por administración.</p>}<Link className="mt-2 inline-flex min-h-11 items-center underline" href={`/historial?paciente=${seleccionada.paciente_id}&desde=${fecha}&hasta=${fecha}`}>Ver historial y correcciones</Link></div></div> : <>
           {medNoDisponible && <p role="alert" className={styles.error}>La indicación de este medicamento está pendiente de revisión o ya no está activa. Revisa el expediente antes de registrarlo.</p>}
           {!seleccionada.activo && <p className={styles.notice}>Esta programación fue retirada. Se conserva aquí como historial.</p>}
           {fecha > reloj.fecha && <p className={styles.notice}>Podrás registrar este cuidado el día programado.</p>}
-          <label className="label" htmlFor="agenda-observaciones">Observaciones <span className={styles.optional}>(opcional)</span></label>
-          <textarea id="agenda-observaciones" className="input" rows={3} maxLength={1000} value={observaciones} disabled={guardando || !seleccionada.activo || fecha > reloj.fecha || medNoDisponible} onChange={e => setObservaciones(e.target.value)} placeholder="Información sobre el cuidado realizado" />
-          <p className={styles.helper}>{miNombre ? `Al confirmar se guardará el nombre de ${miNombre} y la hora real del registro.` : "Necesitas iniciar sesión con una cuenta de personal para registrar el cuidado."}</p>
-          <button type="button" onClick={completar} disabled={guardando || !miPersonalId || Boolean(errorCarga) || !seleccionada.activo || fecha > reloj.fecha || medNoDisponible} className="btn btn-primary w-full"><Icon name="check" />{guardando ? "Guardando…" : "Confirmar que ya se realizó"}</button>
+          <p className={styles.helper}>Los cuidados se registran desde Mi turno. El sistema verifica el turno vigente y guarda a la persona que los realiza.</p>
+          <Link href="/turno" className="btn btn-primary w-full">Abrir mi turno</Link>
         </>}
         {error && <p role="alert" className={styles.error}>{error}</p>}
         {esAdmin && seleccionada.activo && <div className={styles.archive}>{confirmarArchivo ? <><p>¿Retirar esta programación? Los cuidados realizados permanecerán en el historial.</p><div className={styles.formActions}><button className="btn btn-danger" disabled={guardando} onClick={archivar}>Retirar programación</button><button className="btn btn-secondary" disabled={guardando} onClick={() => setConfirmarArchivo(false)}>Cancelar</button></div></> : <button className="btn btn-ghost btn-sm" disabled={guardando} onClick={() => setConfirmarArchivo(true)}>Retirar programación…</button>}</div>}
@@ -275,7 +256,7 @@ function ProgramarDialog({ pacientes, medicamentos, fecha, hoy, onClose, onCreat
   const [form, setForm] = useState({ paciente: "", tipo: "alimentacion" as TipoAgenda, titulo: "", descripcion: "", hora: "", inicio: fecha, fin: "", repetir: false, dias: [0, 1, 2, 3, 4, 5, 6], medicamento: "" });
   const [guardando, guardar] = useTransition();
   const [error, setError] = useState("");
-  const elegibles = medicamentos.filter(m => m.paciente_id === form.paciente && m.activo && !indicacionSinRevisar(m.notas));
+  const elegibles = medicamentos.filter(m => m.paciente_id === form.paciente && m.activo && Boolean(m.dosis?.trim()) && !indicacionSinRevisar(m.notas));
   const seleccionado = elegibles.find(m => m.id === form.medicamento);
   function submit(e: FormEvent) {
     e.preventDefault();

@@ -22,7 +22,7 @@ export interface AgendaTarea {
 }
 export interface AgendaRealizacion {
   id: string; tarea_id: string; fecha: string; realizada_at: string;
-  personal_id: string; observaciones: string | null;
+  personal_id: string; observaciones: string | null; corregida?: boolean;
 }
 export interface CrearTareaAgendaInput {
   pacienteIds: string[]; tipo: TipoAgenda; titulo: string; descripcion?: string;

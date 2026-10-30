@@ -14,7 +14,7 @@ export default async function PacientePage({
 }) {
   const { id } = await params;
   const { tab } = await searchParams;
-  const tabInicial = tab === "medicamentos" ? "medicamentos" : "info";
+  const tabInicial = tab === "medicamentos" || tab === "actividades" || tab === "salidas" ? tab : "info";
   const supabase = await createClient();
   const usuario = await getUsuarioActual();
 

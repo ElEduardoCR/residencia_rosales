@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { TURNOS, PRESENTACIONES } from "@/lib/constants";
 import type { MedicamentoPaciente, Turno } from "@/lib/types";
@@ -66,14 +67,14 @@ function aPayload(f: FormMed, original: MedicamentoPaciente | undefined) {
     dosis: f.dosis || null,
     frecuencia: f.frecuencia || null,
     turnos: f.turnos,
-    cantidad: f.cantidad ? Number(f.cantidad) : original?.cantidad ?? 0,
+    ...(original ? {} : { cantidad: 0 }),
     minimo: f.minimo ? Number(f.minimo) : 0,
     maximo: f.maximo ? Number(f.maximo) : null,
     lugar_compra: f.lugar_compra || null,
     notas: actualizarNotasVerificacion({
-      notas: f.notas,
+      notas: original ? f.notas : `${f.notas}\nExistencias no verificadas.`.trim(),
       notasOriginales: original?.notas ?? null,
-      existenciasVerificadas: f.existencias_verificadas,
+      existenciasVerificadas: Boolean(original && original.stock_verificado_at && !existenciasSinVerificar(original.notas)),
       dosisYHorariosRevisados: f.dosis_revisadas,
       fecha: fechaEnZona("America/Chihuahua"),
     }),
@@ -96,15 +97,20 @@ export default function MedicamentosPaciente({
   const [form, setForm] = useState<FormMed>(VACIO);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [actualizacionNecesaria, setActualizacionNecesaria] = useState(false);
   const medicamentoEditando = lista.find(m => m.id === editId);
-  const documental = esRegistroDocumental(medicamentoEditando?.notas) || esRegistroDocumental(form.notas);
+  const documental = agregando || esRegistroDocumental(medicamentoEditando?.notas) || esRegistroDocumental(form.notas);
 
   function abrirAgregar() {
+    setActualizacionNecesaria(false);
+    setError(null);
     setForm(VACIO);
     setEditId(null);
     setAgregando(true);
   }
   function abrirEditar(m: MedicamentoPaciente) {
+    setActualizacionNecesaria(false);
+    setError(null);
     setForm(desdeMed(m));
     setAgregando(false);
     setEditId(m.id);
@@ -112,23 +118,29 @@ export default function MedicamentosPaciente({
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
-    if (guardando) return;
+    if (guardando || actualizacionNecesaria) return;
     if (!form.medicamento_nombre.trim()) return setError("Escribe el nombre del medicamento.");
-    if ([form.cantidad, form.minimo, form.maximo].some(v => v && (!Number.isFinite(Number(v)) || Number(v) < 0))) {
+    if ([form.minimo, form.maximo].some(v => v && (!Number.isFinite(Number(v)) || Number(v) < 0))) {
       return setError("Las existencias y los límites deben ser números positivos o cero.");
-    }
-    if (documental && form.existencias_verificadas && form.cantidad.trim() === "") {
-      return setError("Escribe la cantidad contada; puedes registrar 0 si no hay existencias.");
     }
     setGuardando(true);
     setError(null);
     try {
       const payload = aPayload(form, medicamentoEditando);
-      const query = editId
+      let query = editId
         ? supabase.from("medicamentos_paciente").update(payload).eq("id", editId)
         : supabase.from("medicamentos_paciente").insert({ paciente_id: pacienteId, ...payload });
-      const { data, error: fallo } = await query.select().single();
-      if (fallo || !data) throw new Error("No se pudo guardar el medicamento. Revisa la conexión y tus permisos.");
+      if (editId) {
+        query = medicamentoEditando?.stock_verificado_at
+          ? query.eq("stock_verificado_at", medicamentoEditando.stock_verificado_at)
+          : query.is("stock_verificado_at", null);
+      }
+      const { data, error: fallo } = await query.select().maybeSingle();
+      if (fallo) throw new Error("No se pudo guardar el medicamento. Revisa la conexión y tus permisos.");
+      if (!data) {
+        setActualizacionNecesaria(true);
+        throw new Error("El medicamento cambió mientras lo editabas. Actualiza sus datos antes de guardar; tus cambios siguen en el formulario.");
+      }
       setLista(prev => editId ? prev.map(m => m.id === editId ? data : m) : [...prev, data]);
       setEditId(null);
       setAgregando(false);
@@ -138,16 +150,23 @@ export default function MedicamentosPaciente({
     } finally { setGuardando(false); }
   }
 
-  async function ajustar(m: MedicamentoPaciente, delta: number) {
-    if (existenciasSinVerificar(m.notas)) {
-      return setError("Verifica las existencias mediante conteo en Editar antes de ajustar la cantidad.");
-    }
-    setError(null);
-    const nueva = Math.max(0, Number(m.cantidad) + delta);
-    const { data, error: fallo } = await supabase.from("medicamentos_paciente")
-      .update({ cantidad: nueva }).eq("id", m.id).select().single();
-    if (fallo || !data) return setError("No se pudo actualizar la cantidad.");
-    setLista(prev => prev.map(x => x.id === m.id ? data : x));
+  async function actualizarDatos() {
+    if (guardando) return;
+    setGuardando(true);
+    try {
+      const { data, error: fallo } = await supabase.from("medicamentos_paciente").select("*").eq("paciente_id", pacienteId).eq("activo", true).order("medicamento_nombre");
+      if (fallo || !data) throw new Error("No se pudieron actualizar los datos. Intenta nuevamente.");
+      setLista(data);
+      if (editId && !data.some(m => m.id === editId)) {
+        setEditId(null);
+        setError("Este medicamento ya no está activo. Revisa la lista actualizada.");
+      } else {
+        setError("Datos actualizados. Revisa la indicación y vuelve a guardar tus cambios.");
+      }
+      setActualizacionNecesaria(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudieron actualizar los datos.");
+    } finally { setGuardando(false); }
   }
 
   async function eliminar(id: string) {
@@ -212,11 +231,7 @@ export default function MedicamentosPaciente({
         <label className="label" htmlFor="med-notas">Fuente e indicaciones del documento</label>
         <textarea id="med-notas" className="input min-h-28" value={form.notas} onChange={e => setForm({ ...form, notas: e.target.value })} />
       </div>
-      <div className="grid grid-cols-3 gap-3 sm:col-span-2">
-        <div>
-          <label className="label">Cantidad</label>
-          <input type="number" min="0" step="0.01" className="input" placeholder={documental && !form.existencias_verificadas ? "Sin verificar" : "Cantidad contada"} value={form.cantidad} onChange={(e) => setForm({ ...form, cantidad: e.target.value })} />
-        </div>
+      <div className="grid grid-cols-2 gap-3 sm:col-span-2">
         <div>
           <label className="label">Mínimo</label>
           <input type="number" step="0.01" className="input" value={form.minimo} onChange={(e) => setForm({ ...form, minimo: e.target.value })} />
@@ -226,19 +241,13 @@ export default function MedicamentosPaciente({
           <input type="number" step="0.01" className="input" value={form.maximo} onChange={(e) => setForm({ ...form, maximo: e.target.value })} />
         </div>
       </div>
-      {documental && <div className="sm:col-span-2">
-        <label className="flex min-h-11 items-center gap-2 text-sm text-slate-700">
-          <input type="checkbox" checked={form.existencias_verificadas} onChange={e => setForm({ ...form, existencias_verificadas: e.target.checked })} />
-          Existencias verificadas mediante conteo
-        </label>
-        {!form.existencias_verificadas && <p className="text-xs text-slate-500">Puedes guardar sin confirmar un conteo. Las existencias seguirán apareciendo como sin verificar.</p>}
-      </div>}
+      <p className="text-sm text-slate-600 sm:col-span-2">Las existencias se actualizan en <Link href="/medicamentos" className="font-semibold text-marca-700 underline">Medicamentos → Registrar conteo</Link>, con fecha, responsable y motivo.</p>
     </div>
   );
 
   return (
     <div className="space-y-4">
-      {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <div role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700"><p>{error}</p>{actualizacionNecesaria && <button type="button" className="btn btn-secondary mt-3" disabled={guardando} onClick={actualizarDatos}>{guardando ? "Actualizando…" : "Actualizar datos"}</button>}</div>}
       {lista.some(m => m.notas?.includes("Requiere revisión documental")) && <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Indicaciones transcritas de los documentos. Verifica dosis, unidades y horarios antes de programar su administración.</p>}
       {esAdmin && !agregando && !editId && (
         <div className="flex justify-end">
@@ -258,7 +267,7 @@ export default function MedicamentosPaciente({
           </div>
           {Campos}
           <div className="flex gap-2">
-            <button type="submit" disabled={guardando} className="btn btn-primary">Guardar</button>
+            <button type="submit" disabled={guardando || actualizacionNecesaria} className="btn btn-primary">Guardar</button>
             <button type="button" onClick={() => setAgregando(false)} className="btn btn-secondary">Cancelar</button>
           </div>
         </form>
@@ -277,7 +286,7 @@ export default function MedicamentosPaciente({
                 </div>
                 {Campos}
                 <div className="flex gap-2">
-                  <button type="submit" disabled={guardando} className="btn btn-primary">Guardar cambios</button>
+                  <button type="submit" disabled={guardando || actualizacionNecesaria} className="btn btn-primary">Guardar cambios</button>
                   <button type="button" onClick={() => setEditId(null)} className="btn btn-secondary">Cancelar</button>
                 </div>
               </form>
@@ -286,7 +295,6 @@ export default function MedicamentosPaciente({
                 key={m.id}
                 m={m}
                 esAdmin={esAdmin}
-                onAjustar={ajustar}
                 onEditar={abrirEditar}
                 onEliminar={eliminar}
               />
@@ -301,17 +309,15 @@ export default function MedicamentosPaciente({
 function Fila({
   m,
   esAdmin,
-  onAjustar,
   onEditar,
   onEliminar,
 }: {
   m: MedicamentoPaciente;
   esAdmin: boolean;
-  onAjustar: (m: MedicamentoPaciente, d: number) => void;
   onEditar: (m: MedicamentoPaciente) => void;
   onEliminar: (id: string) => void;
 }) {
-  const sinConteo = existenciasSinVerificar(m.notas);
+  const sinConteo = !m.stock_verificado_at || existenciasSinVerificar(m.notas);
   const bajo = !sinConteo && Number(m.minimo) > 0 && Number(m.cantidad) <= Number(m.minimo);
   return (
     <div className={`card p-4 ${bajo ? "border-amber-300 bg-amber-50/40" : ""}`}>
@@ -337,13 +343,7 @@ function Fila({
         {sinConteo && <span className="text-xs text-slate-500">Existencias sin verificar</span>}
         {esAdmin && (
           <>
-            <div className="flex items-center gap-1">
-              <button disabled={sinConteo} title={sinConteo ? "Verifica las existencias en Editar" : "Restar una unidad"} aria-label="Restar una unidad" onClick={() => onAjustar(m, -1)} className="btn btn-secondary btn-sm">−</button>
-              <span className="w-16 text-center text-lg font-bold text-slate-800">
-                {sinConteo ? "—" : Number(m.cantidad)}<span className="ml-1 text-[10px] font-normal text-slate-400">{m.presentacion || ""}</span>
-              </span>
-              <button disabled={sinConteo} title={sinConteo ? "Verifica las existencias en Editar" : "Agregar una unidad"} aria-label="Agregar una unidad" onClick={() => onAjustar(m, 1)} className="btn btn-secondary btn-sm">+</button>
-            </div>
+            <Link href="/medicamentos" className="btn btn-secondary btn-sm">{sinConteo ? "Registrar conteo" : `${Number(m.cantidad)} ${m.presentacion || "unidades"} · ver conteo`}</Link>
             <button onClick={() => onEditar(m)} className="btn btn-ghost btn-sm">Editar</button>
             <button onClick={() => onEliminar(m.id)} className="btn btn-danger btn-sm">Eliminar</button>
           </>

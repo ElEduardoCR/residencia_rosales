@@ -70,6 +70,7 @@ export default function PacienteDetalle({
               {paciente.imc && ` · IMC ${paciente.imc}`}
             </p>
           </div>
+          <Link href={`/historial?paciente=${paciente.id}`} className="btn btn-secondary min-h-11">Ver historial</Link>
           {esAdmin && (
             <div className="flex gap-2">
               <Link href={`/pacientes/${paciente.id}/editar`} className="btn btn-secondary btn-sm">Editar</Link>
@@ -127,8 +128,7 @@ function InfoTab({ paciente }: { paciente: Paciente }) {
         <Campo label="Sexo">{paciente.sexo}</Campo>
         <Campo label="Tipo de sangre">{paciente.tipo_sangre}</Campo>
         <Campo label="Peso">{paciente.peso ? `${paciente.peso} kg` : null}</Campo>
-        <Campo label="Estatura">{paciente.estatura ? `${paciente.estatura} cm` : null}</Campo>
-        <Campo label="Talla">{paciente.talla ? `${paciente.talla} cm` : null}</Campo>
+        <Campo label="Estatura">{(paciente.estatura ?? paciente.talla) != null ? `${paciente.estatura ?? paciente.talla} cm` : null}</Campo>
         <Campo label="IMC">{paciente.imc}</Campo>
       </div>
 

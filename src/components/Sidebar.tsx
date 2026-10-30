@@ -7,14 +7,17 @@ import Icon, { type IconName } from "@/components/Icon";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const NAV: { href: string; label: string; icon: IconName; adminOnly?: boolean }[] = [
-  { href: "/", label: "Inicio", icon: "home" },
+  { href: "/turno", label: "Mi turno", icon: "home" },
+  { href: "/historial", label: "Historial y promedios", icon: "clipboard" },
+  { href: "/medicamentos", label: "Medicamentos", icon: "pill" },
   { href: "/agenda", label: "Agenda por hora", icon: "clock" },
   { href: "/pacientes", label: "Pacientes", icon: "patients" },
-  { href: "/actividades", label: "Registro diario", icon: "clipboard" },
   { href: "/salidas", label: "Registro de salida", icon: "exit" },
   { href: "/visitas", label: "Visitas", icon: "visits" },
   { href: "/menu", label: "Menú semanal", icon: "menu" },
   { href: "/personal", label: "Personal", icon: "staff", adminOnly: true },
+  { href: "/administracion", label: "Administración", icon: "calendar", adminOnly: true },
+  { href: "/resumen", label: "Resumen", icon: "heart", adminOnly: true },
 ];
 
 export default function Sidebar({ nombre, esAdmin, accesoLocal, usuario }: { nombre: string; esAdmin: boolean; accesoLocal: boolean; usuario: string }) {

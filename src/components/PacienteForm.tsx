@@ -26,7 +26,6 @@ type Datos = {
   tutor_parentesco: string;
   tutor_contacto: string;
   peso: string;
-  talla: string;
   estatura: string;
   notas: string;
 };
@@ -49,8 +48,7 @@ export default function PacienteForm({ paciente }: { paciente?: Paciente }) {
     tutor_parentesco: paciente?.tutor_parentesco ?? "",
     tutor_contacto: paciente?.tutor_contacto ?? "",
     peso: paciente?.peso?.toString() ?? "",
-    talla: paciente?.talla?.toString() ?? "",
-    estatura: paciente?.estatura?.toString() ?? "",
+    estatura: (paciente?.estatura ?? paciente?.talla)?.toString() ?? "",
     notas: paciente?.notas ?? "",
   });
 
@@ -82,7 +80,6 @@ export default function PacienteForm({ paciente }: { paciente?: Paciente }) {
       tutor_parentesco: d.tutor_parentesco || null,
       tutor_contacto: d.tutor_contacto || null,
       peso: d.peso ? parseFloat(d.peso) : null,
-      talla: d.talla ? parseFloat(d.talla) : null,
       estatura: d.estatura ? parseFloat(d.estatura) : null,
       notas: d.notas || null,
     };
@@ -176,7 +173,7 @@ export default function PacienteForm({ paciente }: { paciente?: Paciente }) {
             sugerencias={ENFERMEDADES_COMUNES}
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label className="label">Peso (kg)</label>
             <input
@@ -189,13 +186,6 @@ export default function PacienteForm({ paciente }: { paciente?: Paciente }) {
             <input
               type="number" step="0.1" className="input"
               value={d.estatura} onChange={(e) => set("estatura", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="label">Talla (cm)</label>
-            <input
-              type="number" step="0.1" className="input"
-              value={d.talla} onChange={(e) => set("talla", e.target.value)}
             />
           </div>
           <div>

@@ -97,6 +97,7 @@ export interface MedicamentoPaciente {
   turnos: Turno[];
   presentacion: string | null;
   cantidad: number;
+  stock_verificado_at?: string | null;
   minimo: number;
   maximo: number | null;
   lugar_compra: string | null;

@@ -5,12 +5,11 @@ import { getUsuarioActual } from "@/lib/auth";
 import { createAuthClient } from "@/lib/supabase/server";
 import { indicacionSinRevisar } from "@/lib/medication-verification";
 import {
-  esUuidAgenda, fechaAgendaValida, fechaHoraAgenda, tareaOcurreEnFecha, validarNuevaTareaAgenda,
-  type AgendaRealizacion, type AgendaTarea, type CrearTareaAgendaInput,
+  esUuidAgenda, fechaHoraAgenda, validarNuevaTareaAgenda,
+  type AgendaTarea, type CrearTareaAgendaInput,
 } from "@/lib/agenda";
 
 const CAMPOS_TAREA = "id,paciente_id,tipo,titulo,descripcion,hora,fecha_inicio,fecha_fin,dias_semana,medicamento_id,activo,archivada_at,creado_por,created_at";
-const CAMPOS_REALIZACION = "id,tarea_id,fecha,realizada_at,personal_id,observaciones";
 
 async function usuarioAgenda() {
   const usuario = await getUsuarioActual();
@@ -18,6 +17,7 @@ async function usuarioAgenda() {
 }
 function actualizarAgenda() {
   revalidatePath("/agenda");
+  revalidatePath("/turno");
   revalidatePath("/");
 }
 
@@ -33,9 +33,9 @@ export async function crearTareaAgenda(input: CrearTareaAgendaInput): Promise<{ 
     if (pacientesError || pacientes?.length !== v.pacienteIds.length) return { error: "Algún paciente ya no está activo. Actualiza la agenda antes de programar." };
     let titulo = v.titulo;
     if (v.tipo === "medicamento") {
-      const { data: med, error } = await supabase.from("medicamentos_paciente").select("paciente_id,medicamento_nombre,activo,notas")
+      const { data: med, error } = await supabase.from("medicamentos_paciente").select("paciente_id,medicamento_nombre,dosis,activo,notas")
         .eq("id", v.medicamento_id!).single();
-      if (error || !med?.activo || med.paciente_id !== v.pacienteIds[0] || indicacionSinRevisar(med.notas)) {
+      if (error || !med?.activo || med.paciente_id !== v.pacienteIds[0] || !med.dosis?.trim() || indicacionSinRevisar(med.notas)) {
         return { error: "Revisa y confirma la indicación del medicamento en el expediente antes de programarlo." };
       }
       titulo = med.medicamento_nombre;
@@ -51,41 +51,6 @@ export async function crearTareaAgenda(input: CrearTareaAgendaInput): Promise<{ 
     return { ok: true, tareas: data as AgendaTarea[] };
   } catch {
     return { error: "No se pudo conectar. Vuelve a intentarlo sin cerrar el formulario." };
-  }
-}
-
-export async function realizarTareaAgenda(input: { tareaId: string; fecha: string; observaciones?: string }): Promise<{ ok?: boolean; realizacion?: AgendaRealizacion; yaRegistrada?: boolean; error?: string }> {
-  try {
-    const usuario = await usuarioAgenda();
-    if (!usuario) return { error: "Inicia sesión con tu cuenta para registrar quién realizó la tarea." };
-    if (!input || !esUuidAgenda(input.tareaId) || !fechaAgendaValida(input.fecha)
-      || (input.observaciones !== undefined && (typeof input.observaciones !== "string" || input.observaciones.length > 1000))) return { error: "Revisa la fecha y las observaciones de la tarea." };
-    if (input.fecha > fechaHoraAgenda().fecha) return { error: "No puedes marcar como realizada una tarea de un día futuro." };
-    const supabase = await createAuthClient();
-    const existente = () => supabase.from("agenda_realizaciones").select(CAMPOS_REALIZACION).eq("tarea_id", input.tareaId).eq("fecha", input.fecha).maybeSingle();
-    const anterior = await existente();
-    if (anterior.error) return { error: "No se pudo comprobar si esta tarea ya se realizó. Actualiza antes de volver a marcar." };
-    if (anterior.data) return { ok: true, realizacion: anterior.data as AgendaRealizacion, yaRegistrada: true };
-    const { data: tarea, error: tareaError } = await supabase.from("agenda_tareas").select(CAMPOS_TAREA).eq("id", input.tareaId).single();
-    if (tareaError || !tarea?.activo || !tareaOcurreEnFecha(tarea as AgendaTarea, input.fecha)) return { error: "La tarea no está programada para esa fecha o fue archivada. Actualiza la agenda." };
-    if (tarea.medicamento_id) {
-      const { data: med, error } = await supabase.from("medicamentos_paciente").select("paciente_id,activo,notas").eq("id", tarea.medicamento_id).single();
-      if (error || !med?.activo || med.paciente_id !== tarea.paciente_id || indicacionSinRevisar(med.notas)) return { error: "La indicación del medicamento requiere revisión antes de registrar su administración." };
-    }
-    const { data, error } = await supabase.from("agenda_realizaciones").insert({
-      tarea_id: input.tareaId, fecha: input.fecha, personal_id: usuario.personal!.id,
-      observaciones: input.observaciones?.trim() || null,
-    }).select(CAMPOS_REALIZACION).single();
-    if (error?.code === "23505") {
-      const otra = await existente();
-      if (!otra.error && otra.data) { actualizarAgenda(); return { ok: true, realizacion: otra.data as AgendaRealizacion, yaRegistrada: true }; }
-    }
-    if (error || !data) return { error: "No se pudo registrar. La tarea puede haber cambiado; actualiza la agenda e inténtalo otra vez." };
-    actualizarAgenda();
-    if (tarea.tipo === "medicamento") revalidatePath(`/pacientes/${tarea.paciente_id}`);
-    return { ok: true, realizacion: data as AgendaRealizacion };
-  } catch {
-    return { error: "No se pudo conectar. Actualiza la agenda para comprobar si se guardó antes de volver a marcar." };
   }
 }
 
